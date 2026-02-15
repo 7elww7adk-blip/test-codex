@@ -17,12 +17,20 @@
       </div>
       <button class="btn ghost">طلب بالجملة</button>
       <button class="btn">تسجيل الدخول</button>
+ codex/understand-arabic-language-6mavtx
+      <button class="btn cart-btn" id="cartBtn">السلة <span id="cartCount">0</span></button>
+    </header>
+
+    <nav class="nav-cats" id="navCats"></nav>
+    <p class="source-label" id="dataSource">جاري تحميل البيانات...</p>
+=======
     </header>
 
     <nav class="nav-cats" id="navCats"></nav>
  codex/understand-arabic-language-okhsdu
     <p class="source-label" id="dataSource">جاري تحميل البيانات...</p>
 =======
+ main
  main
 
     <section class="hero card">
@@ -82,6 +90,30 @@
       </div>
     </footer>
 
+ codex/understand-arabic-language-6mavtx
+    <div class="cart-backdrop" id="cartBackdrop"></div>
+    <aside class="cart-drawer" id="cartDrawer">
+      <div class="cart-header">
+        <h3>سلة المشتريات</h3>
+        <button class="btn ghost" id="closeCart">إغلاق</button>
+      </div>
+      <div id="cartItems" class="cart-items"></div>
+      <div class="cart-total" id="cartTotal">الإجمالي: 0 جنيه</div>
+      <div class="customer-box">
+        <h4>بيانات العميل</h4>
+        <div class="customer-grid">
+          <input class="customer-input" id="customerName" type="text" placeholder="الاسم" />
+          <input class="customer-input" id="customerPhone" type="tel" placeholder="رقم الهاتف" />
+          <input class="customer-input" id="customerArea" type="text" placeholder="المنطقة" />
+          <input class="customer-input" id="customerAddress" type="text" placeholder="العنوان" />
+          <textarea class="customer-input full" id="customerNotes" rows="3" placeholder="ملاحظات إضافية (اختياري)"></textarea>
+        </div>
+      </div>
+      <button class="btn cart-checkout">إتمام الطلب عبر واتساب</button>
+    </aside>
+
+=======
+ main
     <script src="app.js"></script>
   </body>
 </html>

@@ -1,5 +1,9 @@
 # متجر تشطيبات (نسخة واجهة)
 
+ codex/understand-arabic-language-6mavtx
+نسخة Front-end عربية شبيهة بتصميم موقع توريدات، وتم تجهيزها للربط مع **Google Sheets + Apps Script** مع وجود Fallback محلي إذا الرابط غير مضاف.
+=======
+main
 
 ## التشغيل
 
@@ -9,7 +13,10 @@ python3 -m http.server 4173
 
 ثم افتح: `http://localhost:4173`
 
+ codex/understand-arabic-language-6mavtx
+=======
  codex/understand-arabic-language-okhsdu
+ main
 ## ربط Google Sheets + Apps Script
 
 ### 1) جهّز الشيتات داخل Google Sheet
@@ -53,6 +60,8 @@ const APPS_SCRIPT_URL = "";
 - `https://i.postimg.cc/85RrXLmS/Banner_Webcopy51489383142.webp`
 - `https://i.postimg.cc/d12TNGjc/Banner_AR1038069354.webp`
 - `https://i.postimg.cc/0QYJX70R/regrand_web_banner_ar1385672365.webp`
+ codex/understand-arabic-language-6mavtx
+=======
 =======
 ## التعديل السهل
 
@@ -70,4 +79,5 @@ const APPS_SCRIPT_URL = "";
   - `https://i.postimg.cc/85RrXLmS/Banner_Webcopy51489383142.webp`
   - `https://i.postimg.cc/d12TNGjc/Banner_AR1038069354.webp`
   - `https://i.postimg.cc/0QYJX70R/regrand_web_banner_ar1385672365.webp`
+ main
  main

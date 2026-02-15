@@ -1,5 +1,11 @@
+ codex/understand-arabic-language-6mavtx
+const APPS_SCRIPT_URL = "";
+const CART_KEY = "store_cart_v1";
+const CUSTOMER_KEY = "store_customer_v1";
+=======
  codex/understand-arabic-language-okhsdu
 const APPS_SCRIPT_URL = "";
+ main
 
 const DEFAULT_DATA = {
   categories: [
@@ -34,6 +40,12 @@ const DEFAULT_DATA = {
   ]
 };
 
+ codex/understand-arabic-language-6mavtx
+const cart = loadCart();
+const customer = loadCustomer();
+
+=======
+ main
 const normalizeData = (payload) => ({
   categories: Array.isArray(payload.categories) ? payload.categories : DEFAULT_DATA.categories,
   heroBanners: Array.isArray(payload.heroBanners) && payload.heroBanners.length ? payload.heroBanners : DEFAULT_DATA.heroBanners,
@@ -66,6 +78,136 @@ const loadStoreData = async () => {
   }
 };
 
+ codex/understand-arabic-language-6mavtx
+
+function loadCustomer() {
+  try {
+    return {
+      name: "",
+      phone: "",
+      area: "",
+      address: "",
+      notes: "",
+      ...JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "{}")
+    };
+  } catch {
+    return { name: "", phone: "", area: "", address: "", notes: "" };
+  }
+}
+
+function saveCustomer() {
+  localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customer));
+}
+
+function hydrateCustomerForm() {
+  const mapping = {
+    customerName: "name",
+    customerPhone: "phone",
+    customerArea: "area",
+    customerAddress: "address",
+    customerNotes: "notes"
+  };
+
+  Object.entries(mapping).forEach(([id, key]) => {
+    const input = document.getElementById(id);
+    if (input) input.value = customer[key] || "";
+  });
+}
+
+function bindCustomerInputs() {
+  const mapping = {
+    customerName: "name",
+    customerPhone: "phone",
+    customerArea: "area",
+    customerAddress: "address",
+    customerNotes: "notes"
+  };
+
+  Object.entries(mapping).forEach(([id, key]) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.addEventListener("input", (e) => {
+      customer[key] = e.target.value;
+      saveCustomer();
+    });
+  });
+}
+
+function loadCart() {
+  try {
+    return JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveCart() {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+function updateCartCount() {
+  const count = cart.reduce((sum, item) => sum + item.qty, 0);
+  document.getElementById("cartCount").textContent = count;
+}
+
+function renderCart() {
+  const cartItems = document.getElementById("cartItems");
+  const cartTotal = document.getElementById("cartTotal");
+
+  if (!cart.length) {
+    cartItems.innerHTML = `<div class="cart-item"><div><h4>السلة فارغة</h4><small>ضيف منتجات من الأقسام وابدأ الطلب</small></div></div>`;
+    cartTotal.textContent = "الإجمالي: 0 جنيه";
+    updateCartCount();
+    return;
+  }
+
+  cartItems.innerHTML = cart.map((item, idx) => `
+    <article class="cart-item">
+      <img src="${item.image}" alt="${item.name}" />
+      <div>
+        <h4>${item.name}</h4>
+        <small>${item.price.toLocaleString("ar-EG")} جنيه × ${item.qty}</small>
+      </div>
+      <button class="btn ghost" data-remove="${idx}">حذف</button>
+    </article>
+  `).join("");
+
+  const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  cartTotal.textContent = `الإجمالي: ${total.toLocaleString("ar-EG")} جنيه`;
+  updateCartCount();
+}
+
+function addToCart(product) {
+  const existing = cart.find((p) => p.code === product.code);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    cart.push({
+      code: product.code,
+      name: product.name,
+      price: Number(product.price || 0),
+      image: product.image,
+      qty: 1
+    });
+  }
+  saveCart();
+  renderCart();
+}
+
+function openCart() {
+  document.getElementById("cartDrawer").classList.add("open");
+  document.getElementById("cartBackdrop").classList.add("show");
+  document.body.classList.add("lock-scroll");
+}
+
+function closeCart() {
+  document.getElementById("cartDrawer").classList.remove("open");
+  document.getElementById("cartBackdrop").classList.remove("show");
+  document.body.classList.remove("lock-scroll");
+}
+
+const setupHeroSlider = (heroBanners) => {
+=======
 const setupHeroSlider = (heroBanners) => {
 const categories = [
   ["كهرباء", "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=700&q=80"],
@@ -103,6 +245,7 @@ const brands = [
 
 const setupHeroSlider = () => {
  main
+ main
   const heroImage = document.getElementById("heroImage");
   const dotsWrap = document.getElementById("heroDots");
 
@@ -138,13 +281,19 @@ const setupHeroSlider = () => {
   }, 4500);
 };
 
+ codex/understand-arabic-language-6mavtx
+=======
  codex/understand-arabic-language-okhsdu
+ main
 const render = async () => {
   const data = await loadStoreData();
   const { categories, products, brands, heroBanners } = data;
 
+ codex/understand-arabic-language-6mavtx
+=======
 =======
 const render = () => {
+ main
  main
   const nav = document.getElementById("navCats");
   const latestChips = document.getElementById("latestChips");
@@ -168,7 +317,10 @@ const render = () => {
     categoriesGrid.appendChild(card);
   });
 
+ codex/understand-arabic-language-6mavtx
+=======
  codex/understand-arabic-language-okhsdu
+ main
   const productTemplate = (p) => {
     const price = Number(p.price || 0);
     const old = Number(p.old || 0);
@@ -182,6 +334,11 @@ const render = () => {
         </div>
         <p>الماركة: ${p.brand || "-"}</p>
         <small>الكود: ${p.code || "-"}</small>
+ codex/understand-arabic-language-6mavtx
+        <button class="btn" data-add="${p.code}">أضف للسلة</button>
+      </article>`;
+  };
+=======
       </article>`;
   };
 =======
@@ -195,6 +352,7 @@ const render = () => {
       <small>الكود: ${p.code}</small>
     </article>`;
  main
+ main
 
   document.getElementById("latestProducts").innerHTML = products.map(productTemplate).join("");
   document.getElementById("bestProducts").innerHTML = [...products].reverse().map(productTemplate).join("");
@@ -207,10 +365,36 @@ const render = () => {
     brandGrid.appendChild(el);
   });
 
+ codex/understand-arabic-language-6mavtx
+  document.body.addEventListener("click", (e) => {
+    const addBtn = e.target.closest("[data-add]");
+    if (addBtn) {
+      const product = products.find((p) => p.code === addBtn.dataset.add);
+      if (product) addToCart(product);
+    }
+
+    const removeBtn = e.target.closest("[data-remove]");
+    if (removeBtn) {
+      cart.splice(Number(removeBtn.dataset.remove), 1);
+      saveCart();
+      renderCart();
+    }
+  });
+
+  document.getElementById("cartBtn").addEventListener("click", openCart);
+  document.getElementById("closeCart").addEventListener("click", closeCart);
+  document.getElementById("cartBackdrop").addEventListener("click", closeCart);
+
+  renderCart();
+  hydrateCustomerForm();
+  bindCustomerInputs();
+  setupHeroSlider(heroBanners);
+=======
  codex/understand-arabic-language-okhsdu
   setupHeroSlider(heroBanners);
 =======
   setupHeroSlider();
+ main
  main
 };
 
