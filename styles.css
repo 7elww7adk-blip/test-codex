@@ -47,6 +47,16 @@ body {
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
+ codex/understand-arabic-language-okhsdu
+
+.source-label {
+  width: min(1380px, calc(100% - 30px));
+  margin: 8px auto 0;
+  color: #5f6b80;
+  font-size: 14px;
+}
+=======
+ main
 .pill {
   background: #eef1f6;
   border-radius: 24px;
