@@ -1,5 +1,6 @@
 const APPS_SCRIPT_URL = "";
 const CART_KEY = "store_cart_v1";
+const CUSTOMER_KEY = "store_customer_v1";
 
 const DEFAULT_DATA = {
   categories: [
@@ -35,6 +36,7 @@ const DEFAULT_DATA = {
 };
 
 const cart = loadCart();
+const customer = loadCustomer();
 
 const normalizeData = (payload) => ({
   categories: Array.isArray(payload.categories) ? payload.categories : DEFAULT_DATA.categories,
@@ -67,6 +69,60 @@ const loadStoreData = async () => {
     return DEFAULT_DATA;
   }
 };
+
+
+function loadCustomer() {
+  try {
+    return {
+      name: "",
+      phone: "",
+      area: "",
+      address: "",
+      notes: "",
+      ...JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "{}")
+    };
+  } catch {
+    return { name: "", phone: "", area: "", address: "", notes: "" };
+  }
+}
+
+function saveCustomer() {
+  localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customer));
+}
+
+function hydrateCustomerForm() {
+  const mapping = {
+    customerName: "name",
+    customerPhone: "phone",
+    customerArea: "area",
+    customerAddress: "address",
+    customerNotes: "notes"
+  };
+
+  Object.entries(mapping).forEach(([id, key]) => {
+    const input = document.getElementById(id);
+    if (input) input.value = customer[key] || "";
+  });
+}
+
+function bindCustomerInputs() {
+  const mapping = {
+    customerName: "name",
+    customerPhone: "phone",
+    customerArea: "area",
+    customerAddress: "address",
+    customerNotes: "notes"
+  };
+
+  Object.entries(mapping).forEach(([id, key]) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.addEventListener("input", (e) => {
+      customer[key] = e.target.value;
+      saveCustomer();
+    });
+  });
+}
 
 function loadCart() {
   try {
@@ -251,6 +307,8 @@ const render = async () => {
   document.getElementById("cartBackdrop").addEventListener("click", closeCart);
 
   renderCart();
+  hydrateCustomerForm();
+  bindCustomerInputs();
   setupHeroSlider(heroBanners);
 };
 
