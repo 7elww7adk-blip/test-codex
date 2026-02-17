@@ -3,117 +3,140 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>متجر التشطيبات</title>
+    <title>المصدر</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">توريدات</div>
-      <div class="search-wrap">
-        <input type="search" placeholder="ابحث عن منتجات" />
+    <header class="site-header">
+      <div class="top-row container">
+        <a class="brand" href="?view=home" aria-label="العودة للرئيسية">المصدر</a>
+        <form class="search-form" id="searchForm" role="search">
+          <input id="searchInput" type="search" placeholder="ابحث عن منتجات أو ماركات" aria-label="بحث" />
+          <button class="icon-btn" type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+        <div class="header-actions">
+          <button class="btn btn-secondary" type="button">تسجيل الدخول</button>
+          <button class="btn btn-secondary" type="button">طلب بالجملة</button>
+          <button class="btn" type="button" id="cartBtn">السلة <span id="cartCount">0</span></button>
+        </div>
       </div>
-      <button class="btn ghost">طلب بالجملة</button>
-      <button class="btn">تسجيل الدخول</button>
- codex/understand-arabic-language-6mavtx
-      <button class="btn cart-btn" id="cartBtn">السلة <span id="cartCount">0</span></button>
+      <nav class="category-nav container" id="headerCategoryNav" aria-label="الأقسام الرئيسية"></nav>
     </header>
 
-    <nav class="nav-cats" id="navCats"></nav>
-    <p class="source-label" id="dataSource">جاري تحميل البيانات...</p>
-=======
-    </header>
+    <main class="container" id="appRoot">
+      <section id="searchView" class="panel hidden" aria-live="polite">
+        <div class="section-title-wrap">
+          <h2>نتائج البحث</h2>
+          <button class="text-link" type="button" id="clearSearchBtn">مسح البحث</button>
+        </div>
+        <div id="searchResults" class="products-grid"></div>
+      </section>
 
-    <nav class="nav-cats" id="navCats"></nav>
- codex/understand-arabic-language-okhsdu
-    <p class="source-label" id="dataSource">جاري تحميل البيانات...</p>
-=======
- main
- main
+      <section id="homeView">
+        <section class="hero panel" id="heroSection">
+          <div id="heroSlides" class="hero-slides"></div>
+          <div id="heroDots" class="hero-dots"></div>
+        </section>
 
-    <section class="hero card">
-      <div class="hero-text">
-        <h1>أجمل الوشوش الكهربائية</h1>
-        <p>أناقة بيتك بقت أسهل</p>
-        <button class="btn">تسوق الآن</button>
-      </div>
-      <img id="heroImage" src="" alt="بانر" />
-      <div class="hero-dots" id="heroDots"></div>
-    </section>
+        <section class="panel">
+          <h2>تسوّق حسب الأقسام</h2>
+          <div class="categories-grid" id="homeCategories"></div>
+        </section>
 
-    <section class="section card">
-      <h2>تسوق حسب الأقسام</h2>
-      <div class="grid-categories" id="categoriesGrid"></div>
-    </section>
+        <section class="panel">
+          <h2>وصل حديثاً على المصدر</h2>
+          <div class="products-grid" id="homeNewArrivals"></div>
+        </section>
 
-    <section class="section card">
-      <h2>وصل حديثاً على توريدات</h2>
-      <div class="chips" id="latestChips"></div>
-      <div class="products" id="latestProducts"></div>
-    </section>
+        <section class="panel">
+          <h2>جميع الماركات</h2>
+          <div class="brands-grid" id="homeFeaturedBrands"></div>
+        </section>
+      </section>
 
-    <section class="section card">
-      <h2>أكثر المنتجات مبيعاً</h2>
-      <div class="chips" id="bestChips"></div>
-      <div class="products" id="bestProducts"></div>
-    </section>
+      <section id="categoryView" class="hidden">
+        <section class="panel category-banner" id="categoryBanner"></section>
 
-    <section class="section card">
-      <h2>جميع الماركات</h2>
-      <div class="chips" id="brandChips"></div>
-      <div class="brands" id="brandsGrid"></div>
-    </section>
+        <section class="panel">
+          <h2>الأقسام الفرعية</h2>
+          <div class="chips" id="subcategoryChips"></div>
+        </section>
 
-    <footer class="footer card">
-      <div>
-        <h3>روابط مفيدة</h3>
-        <a href="#">طلب عرض أسعار</a>
-        <a href="#">تصفح جميع الأقسام</a>
-        <a href="#">تتبع طلبك</a>
-      </div>
-      <div>
-        <h3>معلومات عنا</h3>
-        <a href="#">عن الشركة</a>
-        <a href="#">الأسئلة الشائعة</a>
-        <a href="#">سياسة الخصوصية</a>
-      </div>
-      <div>
-        <h3>روابط التواصل الاجتماعي</h3>
-        <p>Facebook · Instagram · YouTube · LinkedIn</p>
-        <p>اتصل بنا: 01000000000</p>
-      </div>
-      <div>
-        <h3>توريدات</h3>
-        <p>متجر تشطيبات سهل التعديل ومربوط ببيانات خارجية.</p>
+        <section class="panel">
+          <h2>أشهر الماركات</h2>
+          <div class="brands-grid" id="categoryBrands"></div>
+        </section>
+
+        <section class="panel">
+          <h2>وصل حديثاً</h2>
+          <div class="products-grid" id="categoryNewArrivals"></div>
+        </section>
+
+        <section class="panel">
+          <h2>منتجات القسم</h2>
+          <div class="products-grid" id="categoryProducts"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <h3>المصدر</h3>
+          <p>منصة تجارة إلكترونية للمنتجات الكهربائية ومستلزمات التشطيب، بتجربة عربية واضحة وسريعة.</p>
+        </div>
+        <div>
+          <h3>روابط مفيدة</h3>
+          <a href="#">طلب عرض أسعار</a>
+          <a href="#">تصفح جميع الماركات</a>
+          <a href="#">تتبع طلبك</a>
+        </div>
+        <div>
+          <h3>معلومات عنا</h3>
+          <a href="#">عن الشركة</a>
+          <a href="#">الأسئلة الشائعة</a>
+          <a href="#">سياسة الخصوصية</a>
+        </div>
       </div>
     </footer>
 
- codex/understand-arabic-language-6mavtx
-    <div class="cart-backdrop" id="cartBackdrop"></div>
-    <aside class="cart-drawer" id="cartDrawer">
+    <div id="cartBackdrop" class="cart-backdrop hidden"></div>
+    <aside id="cartDrawer" class="cart-drawer" aria-label="سلة المشتريات" aria-hidden="true">
       <div class="cart-header">
         <h3>سلة المشتريات</h3>
-        <button class="btn ghost" id="closeCart">إغلاق</button>
+        <button class="icon-btn" id="closeCart" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="cartItems" class="cart-items"></div>
-      <div class="cart-total" id="cartTotal">الإجمالي: 0 جنيه</div>
-      <div class="customer-box">
-        <h4>بيانات العميل</h4>
-        <div class="customer-grid">
-          <input class="customer-input" id="customerName" type="text" placeholder="الاسم" />
-          <input class="customer-input" id="customerPhone" type="tel" placeholder="رقم الهاتف" />
-          <input class="customer-input" id="customerArea" type="text" placeholder="المنطقة" />
-          <input class="customer-input" id="customerAddress" type="text" placeholder="العنوان" />
-          <textarea class="customer-input full" id="customerNotes" rows="3" placeholder="ملاحظات إضافية (اختياري)"></textarea>
-        </div>
+      <div class="totals">
+        <p>المجموع الفرعي: <strong id="subtotalValue">0</strong></p>
+        <p>الشحن: <strong id="shippingValue">0</strong></p>
+        <p>الإجمالي: <strong id="totalValue">0</strong></p>
       </div>
-      <button class="btn cart-checkout">إتمام الطلب عبر واتساب</button>
+
+      <form id="checkoutForm" novalidate>
+        <h4>بيانات العميل</h4>
+        <div class="form-grid">
+          <label>الاسم الكامل<input name="customer_name" required /></label>
+          <label>رقم الهاتف<input name="phone" required /></label>
+          <label>المنطقة<input name="area" required /></label>
+          <label>العنوان<input name="address" required /></label>
+          <label class="full">ملاحظات<textarea name="notes" rows="3" placeholder="اختياري"></textarea></label>
+        </div>
+        <div id="formErrors" class="form-errors"></div>
+
+        <div class="checkout-actions">
+          <button id="whatsappBtn" class="btn" type="submit">إرسال الطلب واتساب</button>
+          <button id="saveOrderBtn" class="btn btn-secondary" type="button">تسجيل الطلب</button>
+        </div>
+        <p id="orderStatus" class="order-status"></p>
+      </form>
     </aside>
 
-=======
- main
+    <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
