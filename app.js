@@ -14,9 +14,20 @@ const state = {
   selectedSubcategory: "",
   selectedBrand: "",
   searchQuery: "",
+ codex/add-image_url-column-for-subcategories-e3291k
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   cart: [],
+=======
+ codex/add-image_url-column-for-subcategories-tw941r
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
+  cart: [],
+  cart: JSON.parse(localStorage.getItem("msdr_cart") || "[]"),
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
+ main
+ main
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
 };
@@ -528,6 +539,10 @@ function renderAuthState() {
     $("authBtn").onclick = () => openAuthModal("login");
     return;
   }
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+ codex/add-image_url-column-for-subcategories-tw941r
+ main
   wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='myOrdersBtn'>طلباتي</button><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
   $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
   $("myOrdersBtn").onclick = openOrdersModal;
@@ -537,19 +552,35 @@ function renderAuthState() {
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+  wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
+  $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
+  $("logoutBtn").onclick = () => {
+    setCurrentUser(null);
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
+ main
     showToast("تم تسجيل الخروج", "success");
   };
 }
 
 function openAuthModal(tab = "login") {
+ codex/add-image_url-column-for-subcategories-e3291k
   const modal = $("authModal");
   if (!modal) return;
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
+=======
+  $("authModal").classList.remove("hidden");
+  $("authModal").setAttribute("aria-hidden", "false");
+ main
   switchAuthTab(tab);
 }
 
 function closeAuthModal() {
+ codex/add-image_url-column-for-subcategories-e3291k
   const modal = $("authModal");
   const msg = $("authMessage");
   if (!modal) return;
@@ -564,11 +595,26 @@ function switchAuthTab(tab) {
   $("loginForm").classList.toggle("hidden", tab !== "login");
   $("registerForm").classList.toggle("hidden", tab !== "register");
   if ($("authMessage")) $("authMessage").textContent = "";
+=======
+  $("authModal").classList.add("hidden");
+  $("authModal").setAttribute("aria-hidden", "true");
+  $("authMessage").textContent = "";
+}
+
+function switchAuthTab(tab) {
+  document.querySelectorAll(".auth-tab").forEach((b) => b.classList.toggle("active", b.dataset.authTab === tab));
+  $("loginForm").classList.toggle("hidden", tab !== "login");
+  $("registerForm").classList.toggle("hidden", tab !== "register");
+  $("authMessage").textContent = "";
+ main
 }
 
 function setAuthMessage(msg, isError = true) {
   const el = $("authMessage");
+ codex/add-image_url-column-for-subcategories-e3291k
   if (!el) return;
+=======
+ main
   el.textContent = msg;
   el.classList.toggle("error", isError);
   el.classList.toggle("success", !isError);
@@ -581,6 +627,10 @@ function prefillCheckoutFromUser() {
   if (!form.phone.value.trim()) form.phone.value = state.currentUser.phone || "";
 }
 
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+ codex/add-image_url-column-for-subcategories-tw941r
+ main
 function openOrdersModal() {
   if (!state.currentUser) return openAuthModal("login");
   const modal = $("ordersModal");
@@ -598,7 +648,10 @@ function closeOrdersModal() {
 function renderOrdersModal() {
   const orders = getUserOrders().sort((a, b) => asNum(b.created_at) - asNum(a.created_at));
   const wrap = $("ordersList");
+ codex/add-image_url-column-for-subcategories-e3291k
   if (!wrap) return;
+=======
+ main
   if (!orders.length) {
     wrap.innerHTML = `<p class='empty-state'>لا توجد طلبات مسجلة لهذا الحساب حتى الآن.</p>`;
     return;
@@ -640,6 +693,10 @@ function renderOrdersModal() {
   });
 }
 
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+ main
+ main
 function bindStaticEvents() {
   const searchForm = $("searchForm");
   const clearSearchBtn = $("clearSearchBtn");
@@ -717,7 +774,56 @@ function bindStaticEvents() {
     setTimeout(closeAuthModal, 600);
   });
 
+ codex/add-image_url-column-for-subcategories-e3291k
   if (loginForm) loginForm.addEventListener("submit", (e) => {
+=======
+ codex/add-image_url-column-for-subcategories-tw941r
+  $("ordersCloseBtn").onclick = closeOrdersModal;
+  $("ordersModal").addEventListener("click", (e) => {
+    if (e.target.id === "ordersModal") closeOrdersModal();
+  });
+
+ main
+  $("authCloseBtn").onclick = closeAuthModal;
+  $("authModal").addEventListener("click", (e) => {
+    if (e.target.id === "authModal") closeAuthModal();
+  });
+  document.querySelectorAll(".auth-tab").forEach((btn) => {
+    btn.onclick = () => switchAuthTab(btn.dataset.authTab);
+  });
+
+  $("registerForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const full_name = String(fd.get("full_name") || "").trim();
+    const phone = normalizePhone(fd.get("phone"));
+    const password = String(fd.get("password") || "");
+    const confirm = String(fd.get("confirm_password") || "");
+    if (!full_name) return setAuthMessage("الاسم الكامل مطلوب.");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    if (password !== confirm) return setAuthMessage("تأكيد كلمة المرور غير مطابق.");
+    if (state.users.some((u) => normalizePhone(u.phone) === phone)) return setAuthMessage("هذا الرقم مسجل بالفعل.");
+    const user = { id: `u_${Date.now()}`, full_name, phone, password };
+    state.users.push(user);
+    persistUsers();
+    setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-tw941r
+    applyCartAfterLogin(user);
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
+    setAuthMessage("تم إنشاء الحساب وتسجيل الدخول بنجاح.", false);
+    setTimeout(closeAuthModal, 600);
+  });
+
+  $("loginForm").addEventListener("submit", (e) => {
+ main
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const phone = normalizePhone(fd.get("phone"));
@@ -727,16 +833,31 @@ function bindStaticEvents() {
     const user = state.users.find((u) => normalizePhone(u.phone) === phone && u.password === password);
     if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
     setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+ codex/add-image_url-column-for-subcategories-tw941r
+ main
     applyCartAfterLogin(user);
     syncAuthHook({ action: "login", phone });
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
+ codex/add-image_url-column-for-subcategories-e3291k
+=======
+    syncAuthHook({ action: "login", phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
+ main
     setAuthMessage("تم تسجيل الدخول بنجاح.", false);
     setTimeout(closeAuthModal, 600);
   });
 
+ codex/add-image_url-column-for-subcategories-e3291k
   if (checkoutForm) checkoutForm.addEventListener("submit", (e) => {
+=======
+  $("checkoutForm").addEventListener("submit", (e) => {
+ main
     e.preventDefault();
     if (!state.cart.length) return ($("formErrors").textContent = "السلة فارغة.");
     const customer = getCustomerFormData();
