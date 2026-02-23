@@ -74,7 +74,7 @@ h2 { margin-top: 0; }
 .hero-dots .active { background: var(--primary); }
 .categories-grid, .products-grid, .brands-grid, .subcategories-grid { display: grid; gap: 12px; }
 .categories-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.products-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.products-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .brands-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .subcategories-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .card {
@@ -87,6 +87,12 @@ h2 { margin-top: 0; }
 .category-card img { height: 130px; }
 .product-card img { height: 180px; }
 .brand-card img { height: 90px; object-fit: contain; }
+.product-card { padding: 10px; display: flex; flex-direction: column; height: 100%; }
+.product-card img { height: 150px; }
+.product-card h3 { margin: 8px 0 6px; font-size: 0.96rem; line-height: 1.35; }
+.product-card p { margin: 4px 0; font-size: 0.9rem; }
+.product-card .price,
+.product-card .old-price { font-size: 0.92rem; }
 .price { color: var(--primary-dark); font-weight: 800; }
 .old-price { color: #8a95a1; text-decoration: line-through; margin-right: 8px; }
 .badge-unavailable { color: var(--danger); font-weight: 700; }
@@ -197,6 +203,14 @@ h2 { margin-top: 0; }
   .categories-grid, .products-grid, .brands-grid, .subcategories-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+@media (max-width: 1199px) {
+  .products-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .products-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 600px) {
   .top-row { align-items: flex-start; }
   .search-form { order: 3; width: 100%; min-width: 100%; }
@@ -204,10 +218,15 @@ h2 { margin-top: 0; }
   .modal-card { max-height: 90vh; }
   .cart-item { grid-template-columns: 44px 1fr; }
   .cart-item > div:last-child { grid-column: 1 / -1; }
+  .products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 400px) {
   .categories-grid, .products-grid, .brands-grid, .subcategories-grid { grid-template-columns: 1fr; }
   .brand { font-size: 1.6rem; }
   .panel { padding: 12px; }
+}
+
+@media (max-width: 380px) {
+  .products-grid { grid-template-columns: 1fr; }
 }
