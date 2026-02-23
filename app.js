@@ -6,7 +6,7 @@ Developer Notes:
 4) إضافة أي قسم رئيسي جديد تعمل تلقائيًا: فقط أضفه في MainCategories مع enabled=true، وستظهر صفحة القسم عبر نفس الـ routing.
 */
 
-const { APPS_SCRIPT_BASE_URL, DEFAULT_CATEGORY, FALLBACK_SETTINGS, CACHE_TTL_MS } = window.APP_CONFIG;
+const { APPS_SCRIPT_BASE_URL, DEFAULT_CATEGORY, FALLBACK_SETTINGS, CACHE_TTL_MS, AUTH_HOOK_URL } = window.APP_CONFIG;
 
 const state = {
   currentView: "home",
@@ -15,6 +15,8 @@ const state = {
   selectedBrand: "",
   searchQuery: "",
   cart: JSON.parse(localStorage.getItem("msdr_cart") || "[]"),
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
 };
@@ -198,9 +200,6 @@ function renderHome() {
     updateRoute({ view: "category", cat: a.dataset.cat, sub: "", brand: "", q: "" });
   });
 
-  const newArrivals = products.filter((p) => p.new_arrival).slice(0, 12);
-  $("homeNewArrivals").innerHTML = newArrivals.length ? newArrivals.map(productCard).join("") : emptyState("لا توجد منتجات وصل حديثاً حالياً.");
-
   const showBrands = featuredBrands(brands);
   $("homeFeaturedBrands").innerHTML = showBrands.length
     ? showBrands.map((b) => `<article class='card brand-card'><img src='${safeImage(b.logo_url)}' alt='${b.brand_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /><h3>${b.brand_name || "ماركة"}</h3><button class='pill brand-go' data-brand='${b.brand_name || ""}'>عرض المنتجات</button></article>`).join("")
@@ -239,8 +238,17 @@ function renderCategory() {
   $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
 
   const subs = subCategories.filter((s) => s.main_category_name === cat);
-  $("subcategoryChips").innerHTML = [`<button class='pill ${!state.selectedSubcategory ? "active" : ""}' data-sub=''>الكل</button>`, ...subs.map((s) => `<button class='pill ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'>${s.sub_category_name}</button>`)].join("");
-  $("subcategoryChips").querySelectorAll("button").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: b.dataset.sub, brand: state.selectedBrand, q: "" }));
+  $("subcategoryCards").innerHTML = [`<button class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''>
+    <img src='${PLACEHOLDER_IMAGE}' alt='كل الأقسام الفرعية' loading='lazy' />
+    <h3>الكل</h3>
+  </button>`, ...subs.map((s) => {
+    const img = s.image_url || s.image || "";
+    return `<button class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'>
+      <img src='${safeImage(img)}' alt='${s.sub_category_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" />
+      <h3>${s.sub_category_name}</h3>
+    </button>`;
+  })].join("");
+  $("subcategoryCards").querySelectorAll("button[data-sub]").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: b.dataset.sub, brand: "", q: "" }));
 
   const catBrands = getCategoryBrands(cat);
   $("categoryBrands").innerHTML = catBrands.length
@@ -252,8 +260,6 @@ function renderCategory() {
     ? `<div class="active-brand-filter"><span>الفلتر الحالي: <strong>${state.selectedBrand}</strong></span><button class="text-link" type="button" id="clearBrandFilterBtn">مسح فلتر الماركة</button></div>`
     : "";
 
-  const arrivals = categoryProducts.filter((p) => p.new_arrival).slice(0, 12);
-  $("categoryNewArrivals").innerHTML = arrivals.length ? arrivals.map(productCard).join("") : emptyState("لا توجد منتجات جديدة في هذا القسم حالياً.");
   $("categoryProducts").innerHTML = `${activeBrand}${filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.")}`;
   if (state.selectedBrand) {
     $("clearBrandFilterBtn").onclick = () => updateRoute({ view: "category", cat, sub: state.selectedSubcategory, brand: "", q: "" });
@@ -295,7 +301,25 @@ function bindAddToCart() {
     else state.cart.push({ id: p.id, name: p.name, price: p.sale_price > 0 ? p.sale_price : p.price, image: p.image, qty: 1 });
     saveCart();
     renderCart();
+    showToast(found ? "تمت زيادة الكمية في السلة" : "تمت إضافة المنتج إلى السلة");
   });
+}
+
+function showToast(message, type = "success") {
+  let toast = $("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove("show", "success", "error");
+  toast.classList.add(type);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => toast.classList.remove("show"), 2000);
 }
 
 function saveCart() {
@@ -385,7 +409,88 @@ function render() {
   else renderCategory();
   renderSearch();
   $("searchInput").value = state.searchQuery;
+  renderAuthState();
+  prefillCheckoutFromUser();
   renderCart();
+}
+
+
+async function syncAuthHook(payload) {
+  if (!AUTH_HOOK_URL) return;
+  try {
+    await fetch(AUTH_HOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (_) {
+    // hook placeholder (best-effort)
+  }
+}
+
+function normalizePhone(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
+function persistUsers() {
+  localStorage.setItem("msdr_users", JSON.stringify(state.users));
+}
+
+function setCurrentUser(user) {
+  state.currentUser = user || null;
+  if (state.currentUser) localStorage.setItem("msdr_current_user", JSON.stringify(state.currentUser));
+  else localStorage.removeItem("msdr_current_user");
+}
+
+function renderAuthState() {
+  const wrap = $("authArea");
+  if (!wrap) return;
+  if (!state.currentUser) {
+    wrap.innerHTML = `<button class='btn btn-secondary' type='button' id='authBtn'>تسجيل الدخول</button>`;
+    $("authBtn").onclick = () => openAuthModal("login");
+    return;
+  }
+  wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
+  $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
+  $("logoutBtn").onclick = () => {
+    setCurrentUser(null);
+    renderAuthState();
+    prefillCheckoutFromUser();
+    showToast("تم تسجيل الخروج", "success");
+  };
+}
+
+function openAuthModal(tab = "login") {
+  $("authModal").classList.remove("hidden");
+  $("authModal").setAttribute("aria-hidden", "false");
+  switchAuthTab(tab);
+}
+
+function closeAuthModal() {
+  $("authModal").classList.add("hidden");
+  $("authModal").setAttribute("aria-hidden", "true");
+  $("authMessage").textContent = "";
+}
+
+function switchAuthTab(tab) {
+  document.querySelectorAll(".auth-tab").forEach((b) => b.classList.toggle("active", b.dataset.authTab === tab));
+  $("loginForm").classList.toggle("hidden", tab !== "login");
+  $("registerForm").classList.toggle("hidden", tab !== "register");
+  $("authMessage").textContent = "";
+}
+
+function setAuthMessage(msg, isError = true) {
+  const el = $("authMessage");
+  el.textContent = msg;
+  el.classList.toggle("error", isError);
+  el.classList.toggle("success", !isError);
+}
+
+function prefillCheckoutFromUser() {
+  const form = $("checkoutForm");
+  if (!form || !state.currentUser) return;
+  if (!form.customer_name.value.trim()) form.customer_name.value = state.currentUser.full_name || "";
+  if (!form.phone.value.trim()) form.phone.value = state.currentUser.phone || "";
 }
 
 function bindStaticEvents() {
@@ -409,6 +514,54 @@ function bindStaticEvents() {
   $("cartBtn").onclick = open;
   $("closeCart").onclick = close;
   $("cartBackdrop").onclick = close;
+
+  $("authCloseBtn").onclick = closeAuthModal;
+  $("authModal").addEventListener("click", (e) => {
+    if (e.target.id === "authModal") closeAuthModal();
+  });
+  document.querySelectorAll(".auth-tab").forEach((btn) => {
+    btn.onclick = () => switchAuthTab(btn.dataset.authTab);
+  });
+
+  $("registerForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const full_name = String(fd.get("full_name") || "").trim();
+    const phone = normalizePhone(fd.get("phone"));
+    const password = String(fd.get("password") || "");
+    const confirm = String(fd.get("confirm_password") || "");
+    if (!full_name) return setAuthMessage("الاسم الكامل مطلوب.");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    if (password !== confirm) return setAuthMessage("تأكيد كلمة المرور غير مطابق.");
+    if (state.users.some((u) => normalizePhone(u.phone) === phone)) return setAuthMessage("هذا الرقم مسجل بالفعل.");
+    const user = { id: `u_${Date.now()}`, full_name, phone, password };
+    state.users.push(user);
+    persistUsers();
+    setCurrentUser(user);
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    setAuthMessage("تم إنشاء الحساب وتسجيل الدخول بنجاح.", false);
+    setTimeout(closeAuthModal, 600);
+  });
+
+  $("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const phone = normalizePhone(fd.get("phone"));
+    const password = String(fd.get("password") || "");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    const user = state.users.find((u) => normalizePhone(u.phone) === phone && u.password === password);
+    if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
+    setCurrentUser(user);
+    syncAuthHook({ action: "login", phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    setAuthMessage("تم تسجيل الدخول بنجاح.", false);
+    setTimeout(closeAuthModal, 600);
+  });
 
   $("checkoutForm").addEventListener("submit", (e) => {
     e.preventDefault();
