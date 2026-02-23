@@ -90,6 +90,17 @@ h2 { margin-top: 0; }
 .old-price { color: #8a95a1; text-decoration: line-through; margin-right: 8px; }
 .badge-unavailable { color: var(--danger); font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.active-brand-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f9fbfa;
+}
 .category-banner { padding: 0; overflow: hidden; }
 .category-banner img { width: 100%; height: 260px; object-fit: cover; display: block; }
 .category-banner .overlay { padding: 16px; }

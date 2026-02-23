@@ -244,13 +244,20 @@ function renderCategory() {
 
   const catBrands = getCategoryBrands(cat);
   $("categoryBrands").innerHTML = catBrands.length
-    ? catBrands.map((b) => `<article class='card brand-card'><img src='${safeImage(b.logo_url)}' alt='${b.brand_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /><h3>${b.brand_name}</h3><button class='pill' data-brand='${b.brand_name}'>تصفية</button></article>`).join("")
+    ? catBrands.map((b) => `<article class='card brand-card'><img src='${safeImage(b.logo_url)}' alt='${b.brand_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /><h3>${b.brand_name}</h3><button class='pill ${state.selectedBrand === b.brand_name ? "active" : ""}' data-brand='${b.brand_name}'>تصفية</button></article>`).join("")
     : emptyState("لا توجد ماركات مميزة لهذا القسم.");
   $("categoryBrands").querySelectorAll("button[data-brand]").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: state.selectedSubcategory, brand: b.dataset.brand, q: "" }));
 
+  const activeBrand = state.selectedBrand
+    ? `<div class="active-brand-filter"><span>الفلتر الحالي: <strong>${state.selectedBrand}</strong></span><button class="text-link" type="button" id="clearBrandFilterBtn">مسح فلتر الماركة</button></div>`
+    : "";
+
   const arrivals = categoryProducts.filter((p) => p.new_arrival).slice(0, 12);
   $("categoryNewArrivals").innerHTML = arrivals.length ? arrivals.map(productCard).join("") : emptyState("لا توجد منتجات جديدة في هذا القسم حالياً.");
-  $("categoryProducts").innerHTML = filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
+  $("categoryProducts").innerHTML = `${activeBrand}${filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.")}`;
+  if (state.selectedBrand) {
+    $("clearBrandFilterBtn").onclick = () => updateRoute({ view: "category", cat, sub: state.selectedSubcategory, brand: "", q: "" });
+  }
 
   bindAddToCart();
 }
