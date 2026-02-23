@@ -14,9 +14,15 @@ const state = {
   selectedSubcategory: "",
   selectedBrand: "",
   searchQuery: "",
+ codex/add-image_url-column-for-subcategories-tw941r
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   cart: [],
+=======
+  cart: JSON.parse(localStorage.getItem("msdr_cart") || "[]"),
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
+ main
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
 };
@@ -528,6 +534,7 @@ function renderAuthState() {
     $("authBtn").onclick = () => openAuthModal("login");
     return;
   }
+ codex/add-image_url-column-for-subcategories-tw941r
   wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='myOrdersBtn'>طلباتي</button><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
   $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
   $("myOrdersBtn").onclick = openOrdersModal;
@@ -537,6 +544,14 @@ function renderAuthState() {
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
+=======
+  wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
+  $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
+  $("logoutBtn").onclick = () => {
+    setCurrentUser(null);
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
     showToast("تم تسجيل الخروج", "success");
   };
 }
@@ -574,6 +589,7 @@ function prefillCheckoutFromUser() {
   if (!form.phone.value.trim()) form.phone.value = state.currentUser.phone || "";
 }
 
+ codex/add-image_url-column-for-subcategories-tw941r
 function openOrdersModal() {
   if (!state.currentUser) return openAuthModal("login");
   const modal = $("ordersModal");
@@ -632,6 +648,8 @@ function renderOrdersModal() {
   });
 }
 
+=======
+ main
 function bindStaticEvents() {
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -654,11 +672,14 @@ function bindStaticEvents() {
   $("closeCart").onclick = close;
   $("cartBackdrop").onclick = close;
 
+ codex/add-image_url-column-for-subcategories-tw941r
   $("ordersCloseBtn").onclick = closeOrdersModal;
   $("ordersModal").addEventListener("click", (e) => {
     if (e.target.id === "ordersModal") closeOrdersModal();
   });
 
+=======
+ main
   $("authCloseBtn").onclick = closeAuthModal;
   $("authModal").addEventListener("click", (e) => {
     if (e.target.id === "authModal") closeAuthModal();
@@ -683,11 +704,17 @@ function bindStaticEvents() {
     state.users.push(user);
     persistUsers();
     setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-tw941r
     applyCartAfterLogin(user);
     syncAuthHook({ action: "register", full_name, phone });
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
+=======
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
     setAuthMessage("تم إنشاء الحساب وتسجيل الدخول بنجاح.", false);
     setTimeout(closeAuthModal, 600);
   });
@@ -702,11 +729,17 @@ function bindStaticEvents() {
     const user = state.users.find((u) => normalizePhone(u.phone) === phone && u.password === password);
     if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
     setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-tw941r
     applyCartAfterLogin(user);
     syncAuthHook({ action: "login", phone });
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
+=======
+    syncAuthHook({ action: "login", phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+ main
     setAuthMessage("تم تسجيل الدخول بنجاح.", false);
     setTimeout(closeAuthModal, 600);
   });
