@@ -6,7 +6,7 @@ Developer Notes:
 4) إضافة أي قسم رئيسي جديد تعمل تلقائيًا: فقط أضفه في MainCategories مع enabled=true، وستظهر صفحة القسم عبر نفس الـ routing.
 */
 
-const { APPS_SCRIPT_BASE_URL, DEFAULT_CATEGORY, FALLBACK_SETTINGS, CACHE_TTL_MS } = window.APP_CONFIG;
+const { APPS_SCRIPT_BASE_URL, DEFAULT_CATEGORY, FALLBACK_SETTINGS, CACHE_TTL_MS, AUTH_HOOK_URL } = window.APP_CONFIG;
 
 const state = {
   currentView: "home",
@@ -14,7 +14,9 @@ const state = {
   selectedSubcategory: "",
   selectedBrand: "",
   searchQuery: "",
-  cart: JSON.parse(localStorage.getItem("msdr_cart") || "[]"),
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
+  cart: [],
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
 };
@@ -198,9 +200,6 @@ function renderHome() {
     updateRoute({ view: "category", cat: a.dataset.cat, sub: "", brand: "", q: "" });
   });
 
-  const newArrivals = products.filter((p) => p.new_arrival).slice(0, 12);
-  $("homeNewArrivals").innerHTML = newArrivals.length ? newArrivals.map(productCard).join("") : emptyState("لا توجد منتجات وصل حديثاً حالياً.");
-
   const showBrands = featuredBrands(brands);
   $("homeFeaturedBrands").innerHTML = showBrands.length
     ? showBrands.map((b) => `<article class='card brand-card'><img src='${safeImage(b.logo_url)}' alt='${b.brand_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /><h3>${b.brand_name || "ماركة"}</h3><button class='pill brand-go' data-brand='${b.brand_name || ""}'>عرض المنتجات</button></article>`).join("")
@@ -239,8 +238,17 @@ function renderCategory() {
   $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
 
   const subs = subCategories.filter((s) => s.main_category_name === cat);
-  $("subcategoryChips").innerHTML = [`<button class='pill ${!state.selectedSubcategory ? "active" : ""}' data-sub=''>الكل</button>`, ...subs.map((s) => `<button class='pill ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'>${s.sub_category_name}</button>`)].join("");
-  $("subcategoryChips").querySelectorAll("button").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: b.dataset.sub, brand: state.selectedBrand, q: "" }));
+  $("subcategoryCards").innerHTML = [`<button class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''>
+    <img src='${PLACEHOLDER_IMAGE}' alt='كل الأقسام الفرعية' loading='lazy' />
+    <h3>الكل</h3>
+  </button>`, ...subs.map((s) => {
+    const img = s.image_url || s.image || "";
+    return `<button class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'>
+      <img src='${safeImage(img)}' alt='${s.sub_category_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" />
+      <h3>${s.sub_category_name}</h3>
+    </button>`;
+  })].join("");
+  $("subcategoryCards").querySelectorAll("button[data-sub]").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: b.dataset.sub, brand: "", q: "" }));
 
   const catBrands = getCategoryBrands(cat);
   $("categoryBrands").innerHTML = catBrands.length
@@ -252,8 +260,6 @@ function renderCategory() {
     ? `<div class="active-brand-filter"><span>الفلتر الحالي: <strong>${state.selectedBrand}</strong></span><button class="text-link" type="button" id="clearBrandFilterBtn">مسح فلتر الماركة</button></div>`
     : "";
 
-  const arrivals = categoryProducts.filter((p) => p.new_arrival).slice(0, 12);
-  $("categoryNewArrivals").innerHTML = arrivals.length ? arrivals.map(productCard).join("") : emptyState("لا توجد منتجات جديدة في هذا القسم حالياً.");
   $("categoryProducts").innerHTML = `${activeBrand}${filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.")}`;
   if (state.selectedBrand) {
     $("clearBrandFilterBtn").onclick = () => updateRoute({ view: "category", cat, sub: state.selectedSubcategory, brand: "", q: "" });
@@ -286,6 +292,83 @@ function gotoBrand(brandName) {
   updateRoute({ view: "category", cat, brand: brandName, sub: "", q: "" });
 }
 
+function getUserId(user = state.currentUser) {
+  return user ? normalizePhone(user.phone) : "";
+}
+
+function getCartStorageKey(user = state.currentUser) {
+  const userId = getUserId(user);
+  return userId ? `msdr_cart_user_${userId}` : "msdr_cart_guest";
+}
+
+function loadCart(user = state.currentUser) {
+  const key = getCartStorageKey(user);
+  const fromKey = JSON.parse(localStorage.getItem(key) || "null");
+  if (Array.isArray(fromKey)) return fromKey;
+  if (key === "msdr_cart_guest") return JSON.parse(localStorage.getItem("msdr_cart") || "[]");
+  return [];
+}
+
+function mergeCartItems(...carts) {
+  const map = new Map();
+  carts.flat().forEach((item) => {
+    if (!item?.id) return;
+    const found = map.get(item.id);
+    if (found) found.qty += asNum(item.qty, 1);
+    else map.set(item.id, { ...item, qty: Math.max(1, asNum(item.qty, 1)) });
+  });
+  return [...map.values()];
+}
+
+function applyCartAfterLogin(user) {
+  const guestCart = loadCart(null);
+  const userCart = loadCart(user);
+  const merged = mergeCartItems(userCart, guestCart);
+  localStorage.removeItem("msdr_cart_guest");
+  localStorage.setItem(getCartStorageKey(user), JSON.stringify(merged));
+  state.cart = merged;
+}
+
+function getOrdersStorageKey(user = state.currentUser) {
+  const userId = getUserId(user);
+  return userId ? `msdr_orders_user_${userId}` : "";
+}
+
+function getUserOrders(user = state.currentUser) {
+  const key = getOrdersStorageKey(user);
+  if (!key) return [];
+  return JSON.parse(localStorage.getItem(key) || "[]");
+}
+
+function saveUserOrders(orders, user = state.currentUser) {
+  const key = getOrdersStorageKey(user);
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(orders));
+}
+
+function saveOrderLocally(customer, result = {}) {
+  if (!state.currentUser) return;
+  const subtotal = state.cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const shipping = asNum(state.data.settings.shipping || FALLBACK_SETTINGS.shipping);
+  const total = subtotal + shipping;
+  const orders = getUserOrders();
+  orders.push({
+    order_id: result?.order_id || `local_${Date.now()}`,
+    created_at: Date.now(),
+    customer_name: customer.customer_name,
+    phone: customer.phone,
+    area: customer.area,
+    address: customer.address,
+    notes: customer.notes || "",
+    items: state.cart.map((i) => ({ ...i })),
+    subtotal,
+    shipping,
+    total,
+    status: "saved"
+  });
+  saveUserOrders(orders);
+}
+
 function bindAddToCart() {
   document.querySelectorAll(".add-cart").forEach((btn) => btn.onclick = () => {
     const p = state.data.products.find((x) => x.id === btn.dataset.id);
@@ -295,11 +378,29 @@ function bindAddToCart() {
     else state.cart.push({ id: p.id, name: p.name, price: p.sale_price > 0 ? p.sale_price : p.price, image: p.image, qty: 1 });
     saveCart();
     renderCart();
+    showToast(found ? "تمت زيادة الكمية في السلة" : "تمت إضافة المنتج إلى السلة");
   });
 }
 
+function showToast(message, type = "success") {
+  let toast = $("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove("show", "success", "error");
+  toast.classList.add(type);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => toast.classList.remove("show"), 2000);
+}
+
 function saveCart() {
-  localStorage.setItem("msdr_cart", JSON.stringify(state.cart));
+  localStorage.setItem(getCartStorageKey(), JSON.stringify(state.cart));
 }
 
 function renderCart() {
@@ -334,6 +435,7 @@ function renderCart() {
 }
 
 function getCustomerFormData() {
+  prefillCheckoutFromUser();
   const form = $("checkoutForm");
   const fd = new FormData(form);
   const data = Object.fromEntries(fd.entries());
@@ -385,32 +487,256 @@ function render() {
   else renderCategory();
   renderSearch();
   $("searchInput").value = state.searchQuery;
+  renderAuthState();
+  prefillCheckoutFromUser();
   renderCart();
 }
 
+
+async function syncAuthHook(payload) {
+  if (!AUTH_HOOK_URL) return;
+  try {
+    await fetch(AUTH_HOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (_) {
+    // hook placeholder (best-effort)
+  }
+}
+
+function normalizePhone(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
+function persistUsers() {
+  localStorage.setItem("msdr_users", JSON.stringify(state.users));
+}
+
+function setCurrentUser(user) {
+  state.currentUser = user || null;
+  if (state.currentUser) localStorage.setItem("msdr_current_user", JSON.stringify(state.currentUser));
+  else localStorage.removeItem("msdr_current_user");
+}
+
+function renderAuthState() {
+  const wrap = $("authArea");
+  if (!wrap) return;
+  if (!state.currentUser) {
+    wrap.innerHTML = `<button class='btn btn-secondary' type='button' id='authBtn'>تسجيل الدخول</button>`;
+    $("authBtn").onclick = () => openAuthModal("login");
+    return;
+  }
+  wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='myOrdersBtn'>طلباتي</button><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
+  $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
+  $("myOrdersBtn").onclick = openOrdersModal;
+  $("logoutBtn").onclick = () => {
+    setCurrentUser(null);
+    state.cart = loadCart();
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
+    showToast("تم تسجيل الخروج", "success");
+  };
+}
+
+function openAuthModal(tab = "login") {
+  const modal = $("authModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  switchAuthTab(tab);
+}
+
+function closeAuthModal() {
+  const modal = $("authModal");
+  const msg = $("authMessage");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  if (msg) msg.textContent = "";
+}
+
+function switchAuthTab(tab) {
+  if (!$("loginForm") || !$("registerForm")) return;
+  document.querySelectorAll(".auth-tab").forEach((b) => b.classList.toggle("active", b.dataset.authTab === tab));
+  $("loginForm").classList.toggle("hidden", tab !== "login");
+  $("registerForm").classList.toggle("hidden", tab !== "register");
+  if ($("authMessage")) $("authMessage").textContent = "";
+}
+
+function setAuthMessage(msg, isError = true) {
+  const el = $("authMessage");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle("error", isError);
+  el.classList.toggle("success", !isError);
+}
+
+function prefillCheckoutFromUser() {
+  const form = $("checkoutForm");
+  if (!form || !state.currentUser) return;
+  if (!form.customer_name.value.trim()) form.customer_name.value = state.currentUser.full_name || "";
+  if (!form.phone.value.trim()) form.phone.value = state.currentUser.phone || "";
+}
+
+function openOrdersModal() {
+  if (!state.currentUser) return openAuthModal("login");
+  const modal = $("ordersModal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  renderOrdersModal();
+}
+
+function closeOrdersModal() {
+  const modal = $("ordersModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function renderOrdersModal() {
+  const orders = getUserOrders().sort((a, b) => asNum(b.created_at) - asNum(a.created_at));
+  const wrap = $("ordersList");
+  if (!wrap) return;
+  if (!orders.length) {
+    wrap.innerHTML = `<p class='empty-state'>لا توجد طلبات مسجلة لهذا الحساب حتى الآن.</p>`;
+    return;
+  }
+  wrap.innerHTML = orders.map((order, idx) => {
+    const dt = new Date(asNum(order.created_at, Date.now())).toLocaleString("ar-EG");
+    const count = (order.items || []).reduce((s, i) => s + asNum(i.qty, 1), 0);
+    const details = (order.items || []).map((i) => `<li>${i.name} × ${i.qty} — ${formatMoney(i.price * i.qty)}</li>`).join("");
+    return `<article class='order-card'>
+      <div class='order-head'>
+        <strong>طلب #${order.order_id || "-"}</strong>
+        <span>${dt}</span>
+      </div>
+      <p>الإجمالي: <strong>${formatMoney(order.total)}</strong> — عدد المنتجات: ${count}</p>
+      <div class='order-actions'>
+        <button class='pill' type='button' data-order-details='${idx}'>عرض التفاصيل</button>
+        <button class='pill' type='button' data-order-reorder='${idx}'>إعادة الطلب</button>
+      </div>
+      <ul class='order-details hidden' id='orderDetails_${idx}'>${details || "<li>لا توجد عناصر.</li>"}</ul>
+    </article>`;
+  }).join("");
+
+  wrap.querySelectorAll("[data-order-details]").forEach((btn) => {
+    btn.onclick = () => {
+      const el = $(`orderDetails_${btn.dataset.orderDetails}`);
+      if (el) el.classList.toggle("hidden");
+    };
+  });
+  wrap.querySelectorAll("[data-order-reorder]").forEach((btn) => {
+    btn.onclick = () => {
+      const order = orders[asNum(btn.dataset.orderReorder, -1)];
+      if (!order) return;
+      state.cart = (order.items || []).map((i) => ({ ...i, qty: Math.max(1, asNum(i.qty, 1)) }));
+      saveCart();
+      renderCart();
+      closeOrdersModal();
+      showToast("تمت إعادة الطلب وإضافة المنتجات للسلة");
+    };
+  });
+}
+
 function bindStaticEvents() {
-  $("searchForm").addEventListener("submit", (e) => {
+  const searchForm = $("searchForm");
+  const clearSearchBtn = $("clearSearchBtn");
+  const cartBtn = $("cartBtn");
+  const closeCartBtn = $("closeCart");
+  const cartBackdrop = $("cartBackdrop");
+  const cartDrawer = $("cartDrawer");
+  const ordersCloseBtn = $("ordersCloseBtn");
+  const ordersModal = $("ordersModal");
+  const authCloseBtn = $("authCloseBtn");
+  const authModal = $("authModal");
+  const registerForm = $("registerForm");
+  const loginForm = $("loginForm");
+  const checkoutForm = $("checkoutForm");
+  const saveOrderBtn = $("saveOrderBtn");
+
+  if (searchForm) searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = $("searchInput").value.trim();
     updateRoute({ view: state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q });
   });
-  $("clearSearchBtn").onclick = () => updateRoute({ view: state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: "" });
+  if (clearSearchBtn) clearSearchBtn.onclick = () => updateRoute({ view: state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: "" });
 
   const open = () => {
-    $("cartDrawer").classList.add("open");
-    $("cartBackdrop").classList.remove("hidden");
-    $("cartDrawer").setAttribute("aria-hidden", "false");
+    if (!cartDrawer || !cartBackdrop) return;
+    cartDrawer.classList.add("open");
+    cartBackdrop.classList.remove("hidden");
+    cartDrawer.setAttribute("aria-hidden", "false");
   };
   const close = () => {
-    $("cartDrawer").classList.remove("open");
-    $("cartBackdrop").classList.add("hidden");
-    $("cartDrawer").setAttribute("aria-hidden", "true");
+    if (!cartDrawer || !cartBackdrop) return;
+    cartDrawer.classList.remove("open");
+    cartBackdrop.classList.add("hidden");
+    cartDrawer.setAttribute("aria-hidden", "true");
   };
-  $("cartBtn").onclick = open;
-  $("closeCart").onclick = close;
-  $("cartBackdrop").onclick = close;
+  if (cartBtn) cartBtn.onclick = open;
+  if (closeCartBtn) closeCartBtn.onclick = close;
+  if (cartBackdrop) cartBackdrop.onclick = close;
 
-  $("checkoutForm").addEventListener("submit", (e) => {
+  if (ordersCloseBtn) ordersCloseBtn.onclick = closeOrdersModal;
+  if (ordersModal) ordersModal.addEventListener("click", (e) => {
+    if (e.target.id === "ordersModal") closeOrdersModal();
+  });
+
+  if (authCloseBtn) authCloseBtn.onclick = closeAuthModal;
+  if (authModal) authModal.addEventListener("click", (e) => {
+    if (e.target.id === "authModal") closeAuthModal();
+  });
+  document.querySelectorAll(".auth-tab").forEach((btn) => {
+    btn.onclick = () => switchAuthTab(btn.dataset.authTab);
+  });
+
+  if (registerForm) registerForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const full_name = String(fd.get("full_name") || "").trim();
+    const phone = normalizePhone(fd.get("phone"));
+    const password = String(fd.get("password") || "");
+    const confirm = String(fd.get("confirm_password") || "");
+    if (!full_name) return setAuthMessage("الاسم الكامل مطلوب.");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    if (password !== confirm) return setAuthMessage("تأكيد كلمة المرور غير مطابق.");
+    if (state.users.some((u) => normalizePhone(u.phone) === phone)) return setAuthMessage("هذا الرقم مسجل بالفعل.");
+    const user = { id: `u_${Date.now()}`, full_name, phone, password };
+    state.users.push(user);
+    persistUsers();
+    setCurrentUser(user);
+    applyCartAfterLogin(user);
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
+    setAuthMessage("تم إنشاء الحساب وتسجيل الدخول بنجاح.", false);
+    setTimeout(closeAuthModal, 600);
+  });
+
+  if (loginForm) loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const phone = normalizePhone(fd.get("phone"));
+    const password = String(fd.get("password") || "");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    const user = state.users.find((u) => normalizePhone(u.phone) === phone && u.password === password);
+    if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
+    setCurrentUser(user);
+    applyCartAfterLogin(user);
+    syncAuthHook({ action: "login", phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
+    setAuthMessage("تم تسجيل الدخول بنجاح.", false);
+    setTimeout(closeAuthModal, 600);
+  });
+
+  if (checkoutForm) checkoutForm.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!state.cart.length) return ($("formErrors").textContent = "السلة فارغة.");
     const customer = getCustomerFormData();
@@ -420,7 +746,7 @@ function bindStaticEvents() {
     window.open(`https://wa.me/${number}?text=${text}`, "_blank");
   });
 
-  $("saveOrderBtn").onclick = async () => {
+  if (saveOrderBtn) saveOrderBtn.onclick = async () => {
     if (!state.cart.length) return ($("formErrors").textContent = "السلة فارغة.");
     const customer = getCustomerFormData();
     if (!customer) return;
@@ -431,6 +757,11 @@ function bindStaticEvents() {
     try {
       $("orderStatus").textContent = "جاري تسجيل الطلب...";
       const result = await postOrder(customer);
+      saveOrderLocally(customer, result);
+      state.cart = [];
+      saveCart();
+      renderCart();
+      showToast("تم تسجيل الطلب بنجاح");
       $("orderStatus").textContent = result?.order_id ? `تم تسجيل الطلب. رقم الطلب: ${result.order_id}` : "تم تسجيل الطلب بنجاح.";
     } catch (err) {
       $("orderStatus").textContent = "تعذر تسجيل الطلب حالياً.";
@@ -440,8 +771,22 @@ function bindStaticEvents() {
   window.__goHome = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
 }
 
+
+function handleRefreshFlag() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("refresh") !== "1") return;
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("msdr_cache_")) localStorage.removeItem(key);
+  });
+  params.delete("refresh");
+  const next = params.toString();
+  history.replaceState({}, "", `${location.pathname}${next ? `?${next}` : ""}${location.hash || ""}`);
+}
+
 (async function init() {
   try {
+    handleRefreshFlag();
+    state.cart = loadCart();
     bindStaticEvents();
     await loadData();
     syncStateFromRoute();
