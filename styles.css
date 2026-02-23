@@ -233,6 +233,7 @@ h2 { margin-top: 0; }
 .app-toast.error { background: #8f2a2a; }
 .app-toast.success { background: #163029; }
 
+ codex/add-image_url-column-for-subcategories-137t49
 .orders-modal {
   position: fixed;
   inset: 0;
@@ -260,6 +261,8 @@ h2 { margin-top: 0; }
 .order-details { margin: 10px 0 0; padding-inline-start: 18px; color: var(--muted); }
 
 
+=======
+ main
 @media (max-width: 800px) {
   .hero-slide { grid-template-columns: 1fr; }
   .hero-slide img { height: 210px; }
