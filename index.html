@@ -19,8 +19,9 @@
           <button class="icon-btn" type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button>
         </form>
         <div class="header-actions">
-          <button class="btn btn-secondary" type="button">تسجيل الدخول</button>
-          <button class="btn btn-secondary" type="button">طلب بالجملة</button>
+          <div id="authArea" class="auth-area">
+            <button class="btn btn-secondary" type="button" id="authBtn">تسجيل الدخول</button>
+          </div>
           <button class="btn" type="button" id="cartBtn">السلة <span id="cartCount">0</span></button>
         </div>
       </div>
@@ -48,11 +49,6 @@
         </section>
 
         <section class="panel">
-          <h2>وصل حديثاً على المصدر</h2>
-          <div class="products-grid" id="homeNewArrivals"></div>
-        </section>
-
-        <section class="panel">
           <h2>جميع الماركات</h2>
           <div class="brands-grid" id="homeFeaturedBrands"></div>
         </section>
@@ -63,22 +59,17 @@
 
         <section class="panel">
           <h2>الأقسام الفرعية</h2>
-          <div class="chips" id="subcategoryChips"></div>
-        </section>
-
-        <section class="panel">
-          <h2>أشهر الماركات</h2>
-          <div class="brands-grid" id="categoryBrands"></div>
-        </section>
-
-        <section class="panel">
-          <h2>وصل حديثاً</h2>
-          <div class="products-grid" id="categoryNewArrivals"></div>
+          <div id="subcategoryCards" class="subcategories-grid"></div>
         </section>
 
         <section class="panel">
           <h2>منتجات القسم</h2>
           <div class="products-grid" id="categoryProducts"></div>
+        </section>
+
+        <section class="panel">
+          <h2>أشهر الماركات</h2>
+          <div class="brands-grid" id="categoryBrands"></div>
         </section>
       </section>
     </main>
@@ -135,6 +126,41 @@
         <p id="orderStatus" class="order-status"></p>
       </form>
     </aside>
+
+    <div id="authModal" class="auth-modal hidden" aria-hidden="true">
+      <div class="auth-modal-card">
+        <button class="icon-btn auth-close" id="authCloseBtn" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        <div class="auth-tabs">
+          <button class="auth-tab active" type="button" data-auth-tab="login">تسجيل الدخول</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">إنشاء حساب</button>
+        </div>
+
+        <form id="loginForm" class="auth-form" novalidate>
+          <label>رقم الموبايل<input name="phone" inputmode="numeric" required /></label>
+          <label>كلمة المرور<input name="password" type="password" required /></label>
+          <button class="btn" type="submit">دخول</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden" novalidate>
+          <label>الاسم الكامل<input name="full_name" required /></label>
+          <label>رقم الموبايل<input name="phone" inputmode="numeric" required /></label>
+          <label>كلمة المرور<input name="password" type="password" required /></label>
+          <label>تأكيد كلمة المرور<input name="confirm_password" type="password" required /></label>
+          <button class="btn" type="submit">إنشاء الحساب</button>
+        </form>
+
+        <div id="authMessage" class="auth-message" aria-live="polite"></div>
+      </div>
+    </div>
+
+
+    <div id="ordersModal" class="orders-modal hidden" aria-hidden="true">
+      <div class="orders-modal-card">
+        <button class="icon-btn orders-close" id="ordersCloseBtn" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        <h3>طلباتي السابقة</h3>
+        <div id="ordersList" class="orders-list"></div>
+      </div>
+    </div>
 
     <script src="config.js"></script>
     <script src="app.js"></script>
