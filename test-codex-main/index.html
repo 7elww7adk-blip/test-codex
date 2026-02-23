@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>المصدر</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="top-row container">
+        <a class="brand" href="?view=home" aria-label="العودة للرئيسية">المصدر</a>
+        <form class="search-form" id="searchForm" role="search">
+          <input id="searchInput" type="search" placeholder="ابحث عن منتجات أو ماركات" aria-label="بحث" />
+          <button class="icon-btn" type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+        <div class="header-actions">
+          <button class="btn btn-secondary" type="button">تسجيل الدخول</button>
+          <button class="btn btn-secondary" type="button">طلب بالجملة</button>
+          <button class="btn" type="button" id="cartBtn">السلة <span id="cartCount">0</span></button>
+        </div>
+      </div>
+      <nav class="category-nav container" id="headerCategoryNav" aria-label="الأقسام الرئيسية"></nav>
+    </header>
+
+    <main class="container" id="appRoot">
+      <section id="searchView" class="panel hidden" aria-live="polite">
+        <div class="section-title-wrap">
+          <h2>نتائج البحث</h2>
+          <button class="text-link" type="button" id="clearSearchBtn">مسح البحث</button>
+        </div>
+        <div id="searchResults" class="products-grid"></div>
+      </section>
+
+      <section id="homeView">
+        <section class="hero panel" id="heroSection">
+          <div id="heroSlides" class="hero-slides"></div>
+          <div id="heroDots" class="hero-dots"></div>
+        </section>
+
+        <section class="panel">
+          <h2>تسوّق حسب الأقسام</h2>
+          <div class="categories-grid" id="homeCategories"></div>
+        </section>
+
+        <section class="panel">
+          <h2>وصل حديثاً على المصدر</h2>
+          <div class="products-grid" id="homeNewArrivals"></div>
+        </section>
+
+        <section class="panel">
+          <h2>جميع الماركات</h2>
+          <div class="brands-grid" id="homeFeaturedBrands"></div>
+        </section>
+      </section>
+
+      <section id="categoryView" class="hidden">
+        <section class="panel category-banner" id="categoryBanner"></section>
+
+        <section class="panel">
+          <h2>الأقسام الفرعية</h2>
+          <div class="chips" id="subcategoryChips"></div>
+        </section>
+
+        <section class="panel">
+          <h2>أشهر الماركات</h2>
+          <div class="brands-grid" id="categoryBrands"></div>
+        </section>
+
+        <section class="panel">
+          <h2>وصل حديثاً</h2>
+          <div class="products-grid" id="categoryNewArrivals"></div>
+        </section>
+
+        <section class="panel">
+          <h2>منتجات القسم</h2>
+          <div class="products-grid" id="categoryProducts"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <h3>المصدر</h3>
+          <p>منصة تجارة إلكترونية للمنتجات الكهربائية ومستلزمات التشطيب، بتجربة عربية واضحة وسريعة.</p>
+        </div>
+        <div>
+          <h3>روابط مفيدة</h3>
+          <a href="#">طلب عرض أسعار</a>
+          <a href="#">تصفح جميع الماركات</a>
+          <a href="#">تتبع طلبك</a>
+        </div>
+        <div>
+          <h3>معلومات عنا</h3>
+          <a href="#">عن الشركة</a>
+          <a href="#">الأسئلة الشائعة</a>
+          <a href="#">سياسة الخصوصية</a>
+        </div>
+      </div>
+    </footer>
+
+    <div id="cartBackdrop" class="cart-backdrop hidden"></div>
+    <aside id="cartDrawer" class="cart-drawer" aria-label="سلة المشتريات" aria-hidden="true">
+      <div class="cart-header">
+        <h3>سلة المشتريات</h3>
+        <button class="icon-btn" id="closeCart" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="cartItems" class="cart-items"></div>
+      <div class="totals">
+        <p>المجموع الفرعي: <strong id="subtotalValue">0</strong></p>
+        <p>الشحن: <strong id="shippingValue">0</strong></p>
+        <p>الإجمالي: <strong id="totalValue">0</strong></p>
+      </div>
+
+      <form id="checkoutForm" novalidate>
+        <h4>بيانات العميل</h4>
+        <div class="form-grid">
+          <label>الاسم الكامل<input name="customer_name" required /></label>
+          <label>رقم الهاتف<input name="phone" required /></label>
+          <label>المنطقة<input name="area" required /></label>
+          <label>العنوان<input name="address" required /></label>
+          <label class="full">ملاحظات<textarea name="notes" rows="3" placeholder="اختياري"></textarea></label>
+        </div>
+        <div id="formErrors" class="form-errors"></div>
+
+        <div class="checkout-actions">
+          <button id="whatsappBtn" class="btn" type="submit">إرسال الطلب واتساب</button>
+          <button id="saveOrderBtn" class="btn btn-secondary" type="button">تسجيل الطلب</button>
+        </div>
+        <p id="orderStatus" class="order-status"></p>
+      </form>
+    </aside>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
