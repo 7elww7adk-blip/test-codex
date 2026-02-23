@@ -14,7 +14,9 @@ const state = {
   selectedSubcategory: "",
   selectedBrand: "",
   searchQuery: "",
-  currentUser: null,
+ codex/add-image_url-column-for-subcategories-137t49
+  users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
+  currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   cart: [],
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
@@ -355,6 +357,83 @@ function gotoBrand(brandName) {
   updateRoute({ view: "category", cat, brand: brandName, sub: "", q: "" });
 }
 
+function getUserId(user = state.currentUser) {
+  return user ? normalizePhone(user.phone) : "";
+}
+
+function getCartStorageKey(user = state.currentUser) {
+  const userId = getUserId(user);
+  return userId ? `msdr_cart_user_${userId}` : "msdr_cart_guest";
+}
+
+function loadCart(user = state.currentUser) {
+  const key = getCartStorageKey(user);
+  const fromKey = JSON.parse(localStorage.getItem(key) || "null");
+  if (Array.isArray(fromKey)) return fromKey;
+  if (key === "msdr_cart_guest") return JSON.parse(localStorage.getItem("msdr_cart") || "[]");
+  return [];
+}
+
+function mergeCartItems(...carts) {
+  const map = new Map();
+  carts.flat().forEach((item) => {
+    if (!item?.id) return;
+    const found = map.get(item.id);
+    if (found) found.qty += asNum(item.qty, 1);
+    else map.set(item.id, { ...item, qty: Math.max(1, asNum(item.qty, 1)) });
+  });
+  return [...map.values()];
+}
+
+function applyCartAfterLogin(user) {
+  const guestCart = loadCart(null);
+  const userCart = loadCart(user);
+  const merged = mergeCartItems(userCart, guestCart);
+  localStorage.removeItem("msdr_cart_guest");
+  localStorage.setItem(getCartStorageKey(user), JSON.stringify(merged));
+  state.cart = merged;
+}
+
+function getOrdersStorageKey(user = state.currentUser) {
+  const userId = getUserId(user);
+  return userId ? `msdr_orders_user_${userId}` : "";
+}
+
+function getUserOrders(user = state.currentUser) {
+  const key = getOrdersStorageKey(user);
+  if (!key) return [];
+  return JSON.parse(localStorage.getItem(key) || "[]");
+}
+
+function saveUserOrders(orders, user = state.currentUser) {
+  const key = getOrdersStorageKey(user);
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(orders));
+}
+
+function saveOrderLocally(customer, result = {}) {
+  if (!state.currentUser) return;
+  const subtotal = state.cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const shipping = asNum(state.data.settings.shipping || FALLBACK_SETTINGS.shipping);
+  const total = subtotal + shipping;
+  const orders = getUserOrders();
+  orders.push({
+    order_id: result?.order_id || `local_${Date.now()}`,
+    created_at: Date.now(),
+    customer_name: customer.customer_name,
+    phone: customer.phone,
+    area: customer.area,
+    address: customer.address,
+    notes: customer.notes || "",
+    items: state.cart.map((i) => ({ ...i })),
+    subtotal,
+    shipping,
+    total,
+    status: "saved"
+  });
+  saveUserOrders(orders);
+}
+
 function bindAddToCart() {
   document.querySelectorAll(".add-cart").forEach((btn) => btn.onclick = () => {
     const p = state.data.products.find((x) => x.id === btn.dataset.id);
@@ -370,6 +449,27 @@ function bindAddToCart() {
     saveCart();
     renderCart();
   });
+}
+
+function showToast(message, type = "success") {
+  let toast = $("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "app-toast";
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove("show", "success", "error");
+  toast.classList.add(type);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => toast.classList.remove("show"), 2000);
+}
+
+function saveCart() {
+  localStorage.setItem(getCartStorageKey(), JSON.stringify(state.cart));
 }
 
 function renderCart() {
@@ -404,6 +504,7 @@ function renderCart() {
 }
 
 function getCustomerFormData() {
+  prefillCheckoutFromUser();
   const form = $("checkoutForm");
   const fd = new FormData(form);
   const data = Object.fromEntries(fd.entries());
@@ -513,10 +614,24 @@ function renderAuthUI() {
   }
 }
 
-function setAuthTab(tab) {
-  $("authTabs").querySelectorAll("button[data-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
-  $("loginForm").classList.toggle("hidden", tab !== "login");
-  $("registerForm").classList.toggle("hidden", tab !== "register");
+function renderAuthState() {
+  const wrap = $("authArea");
+  if (!wrap) return;
+  if (!state.currentUser) {
+    wrap.innerHTML = `<button class='btn btn-secondary' type='button' id='authBtn'>تسجيل الدخول</button>`;
+    $("authBtn").onclick = () => openAuthModal("login");
+    return;
+  }
+ codex/add-image_url-column-for-subcategories-137t49
+  wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='myOrdersBtn'>طلباتي</button><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
+  $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
+  $("myOrdersBtn").onclick = openOrdersModal;
+  $("logoutBtn").onclick = () => {
+    setCurrentUser(null);
+    state.cart = loadCart();
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
 }
 
 function openAuthModal(defaultTab = "login") {
@@ -540,6 +655,67 @@ function render() {
   renderCart();
 }
 
+ codex/add-image_url-column-for-subcategories-137t49
+function openOrdersModal() {
+  if (!state.currentUser) return openAuthModal("login");
+  const modal = $("ordersModal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  renderOrdersModal();
+}
+
+function closeOrdersModal() {
+  const modal = $("ordersModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function renderOrdersModal() {
+  const orders = getUserOrders().sort((a, b) => asNum(b.created_at) - asNum(a.created_at));
+  const wrap = $("ordersList");
+  if (!orders.length) {
+    wrap.innerHTML = `<p class='empty-state'>لا توجد طلبات مسجلة لهذا الحساب حتى الآن.</p>`;
+    return;
+  }
+  wrap.innerHTML = orders.map((order, idx) => {
+    const dt = new Date(asNum(order.created_at, Date.now())).toLocaleString("ar-EG");
+    const count = (order.items || []).reduce((s, i) => s + asNum(i.qty, 1), 0);
+    const details = (order.items || []).map((i) => `<li>${i.name} × ${i.qty} — ${formatMoney(i.price * i.qty)}</li>`).join("");
+    return `<article class='order-card'>
+      <div class='order-head'>
+        <strong>طلب #${order.order_id || "-"}</strong>
+        <span>${dt}</span>
+      </div>
+      <p>الإجمالي: <strong>${formatMoney(order.total)}</strong> — عدد المنتجات: ${count}</p>
+      <div class='order-actions'>
+        <button class='pill' type='button' data-order-details='${idx}'>عرض التفاصيل</button>
+        <button class='pill' type='button' data-order-reorder='${idx}'>إعادة الطلب</button>
+      </div>
+      <ul class='order-details hidden' id='orderDetails_${idx}'>${details || "<li>لا توجد عناصر.</li>"}</ul>
+    </article>`;
+  }).join("");
+
+  wrap.querySelectorAll("[data-order-details]").forEach((btn) => {
+    btn.onclick = () => {
+      const el = $(`orderDetails_${btn.dataset.orderDetails}`);
+      if (el) el.classList.toggle("hidden");
+    };
+  });
+  wrap.querySelectorAll("[data-order-reorder]").forEach((btn) => {
+    btn.onclick = () => {
+      const order = orders[asNum(btn.dataset.orderReorder, -1)];
+      if (!order) return;
+      state.cart = (order.items || []).map((i) => ({ ...i, qty: Math.max(1, asNum(i.qty, 1)) }));
+      saveCart();
+      renderCart();
+      closeOrdersModal();
+      showToast("تمت إعادة الطلب وإضافة المنتجات للسلة");
+    };
+  });
+}
+
+
+ main
 function bindStaticEvents() {
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -562,8 +738,12 @@ function bindStaticEvents() {
   $("closeCart").onclick = close;
   $("cartBackdrop").onclick = close;
 
-  $("authBtn").onclick = () => openAuthModal("login");
-  $("closeAuthModal").onclick = closeAuthModal;
+ codex/add-image_url-column-for-subcategories-137t49
+  $("ordersCloseBtn").onclick = closeOrdersModal;
+  $("ordersModal").addEventListener("click", (e) => {
+    if (e.target.id === "ordersModal") closeOrdersModal();
+  });
+
   $("authModal").addEventListener("click", (e) => {
     if (e.target.id === "authModal") closeAuthModal();
   });
@@ -590,15 +770,21 @@ function bindStaticEvents() {
     const phone = normalizePhone(fd.get("phone"));
     const password = String(fd.get("password") || "");
     const confirm = String(fd.get("confirm_password") || "");
-    if (!name || phone.length < 10) return ($("registerErrors").textContent = "يرجى إدخال اسم ورقم هاتف صحيح (10 أرقام على الأقل).");
-    if (password.length < 6) return ($("registerErrors").textContent = "كلمة المرور يجب أن تكون 6 أحرف على الأقل.");
-    if (password !== confirm) return ($("registerErrors").textContent = "تأكيد كلمة المرور غير مطابق.");
-    const users = getUsers();
-    if (users.some((u) => normalizePhone(u.phone) === phone)) return ($("registerErrors").textContent = "رقم الهاتف مسجل بالفعل.");
-    users.push({ name, phone, pass_hash_or_plain: password, created_at: new Date().toISOString() });
-    saveUsers(users);
-    $("registerErrors").textContent = "تم إنشاء الحساب بنجاح. يمكنك تسجيل الدخول الآن.";
-    setAuthTab("login");
+    if (!full_name) return setAuthMessage("الاسم الكامل مطلوب.");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    if (password !== confirm) return setAuthMessage("تأكيد كلمة المرور غير مطابق.");
+    if (state.users.some((u) => normalizePhone(u.phone) === phone)) return setAuthMessage("هذا الرقم مسجل بالفعل.");
+    const user = { id: `u_${Date.now()}`, full_name, phone, password };
+    state.users.push(user);
+    persistUsers();
+    setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-137t49
+    applyCartAfterLogin(user);
+    syncAuthHook({ action: "register", full_name, phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
   });
 
   $("loginForm").addEventListener("submit", (e) => {
@@ -606,12 +792,17 @@ function bindStaticEvents() {
     const fd = new FormData(e.currentTarget);
     const phone = normalizePhone(fd.get("phone"));
     const password = String(fd.get("password") || "");
-    const found = getUsers().find((u) => normalizePhone(u.phone) === phone && String(u.pass_hash_or_plain) === password);
-    if (!found) return ($("loginErrors").textContent = "بيانات الدخول غير صحيحة.");
-    mergeGuestCartIntoUser(found.phone);
-    setCurrentUser({ name: found.name, phone: found.phone });
-    closeAuthModal();
-    showToast("تم تسجيل الدخول بنجاح");
+    if (phone.length < 10) return setAuthMessage("رقم الموبايل يجب ألا يقل عن 10 أرقام.");
+    if (password.length < 6) return setAuthMessage("كلمة المرور يجب ألا تقل عن 6 أحرف.");
+    const user = state.users.find((u) => normalizePhone(u.phone) === phone && u.password === password);
+    if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
+    setCurrentUser(user);
+ codex/add-image_url-column-for-subcategories-137t49
+    applyCartAfterLogin(user);
+    syncAuthHook({ action: "login", phone });
+    renderAuthState();
+    prefillCheckoutFromUser();
+    renderCart();
   });
 
   $("checkoutForm").addEventListener("submit", (e) => {
@@ -635,6 +826,11 @@ function bindStaticEvents() {
     try {
       $("orderStatus").textContent = "جاري تسجيل الطلب...";
       const result = await postOrder(customer);
+      saveOrderLocally(customer, result);
+      state.cart = [];
+      saveCart();
+      renderCart();
+      showToast("تم تسجيل الطلب بنجاح");
       $("orderStatus").textContent = result?.order_id ? `تم تسجيل الطلب. رقم الطلب: ${result.order_id}` : "تم تسجيل الطلب بنجاح.";
       persistOrderLocal(customer);
       state.cart = [];
@@ -651,9 +847,7 @@ function bindStaticEvents() {
 
 (async function init() {
   try {
-    clearCacheWhenRefreshRequested();
-    loadCurrentUser();
-    loadCart();
+    state.cart = loadCart();
     bindStaticEvents();
     await loadData();
     syncStateFromRoute();

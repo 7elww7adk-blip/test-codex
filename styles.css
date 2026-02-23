@@ -191,6 +191,36 @@ h2 { margin-top: 0; }
   transform: translateY(0);
 }
 
+ codex/add-image_url-column-for-subcategories-137t49
+.orders-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 121;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.orders-modal-card {
+  width: min(680px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  padding: 16px;
+  position: relative;
+}
+.orders-close { position: absolute; top: 8px; left: 8px; }
+.orders-list { display: grid; gap: 12px; }
+.order-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
+.order-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.order-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.order-details { margin: 10px 0 0; padding-inline-start: 18px; color: var(--muted); }
+
+
+=======
+ main
 @media (max-width: 800px) {
   .hero-slide { grid-template-columns: 1fr; }
   .hero-slide img { height: 210px; }
