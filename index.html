@@ -19,8 +19,14 @@
           <button class="icon-btn" type="submit" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button>
         </form>
         <div class="header-actions">
-          <button class="btn btn-secondary" type="button">تسجيل الدخول</button>
-          <button class="btn btn-secondary" type="button">طلب بالجملة</button>
+          <button class="btn btn-secondary" type="button" id="authBtn">تسجيل الدخول</button>
+          <div class="user-menu hidden" id="userMenuWrap">
+            <button class="btn btn-secondary" type="button" id="userMenuBtn"></button>
+            <div class="user-menu-list hidden" id="userMenuList">
+              <button class="text-link" type="button" id="myOrdersBtn">طلباتي</button>
+              <button class="text-link" type="button" id="logoutBtn">تسجيل الخروج</button>
+            </div>
+          </div>
           <button class="btn" type="button" id="cartBtn">السلة <span id="cartCount">0</span></button>
         </div>
       </div>
@@ -48,11 +54,6 @@
         </section>
 
         <section class="panel">
-          <h2>وصل حديثاً على المصدر</h2>
-          <div class="products-grid" id="homeNewArrivals"></div>
-        </section>
-
-        <section class="panel">
           <h2>جميع الماركات</h2>
           <div class="brands-grid" id="homeFeaturedBrands"></div>
         </section>
@@ -63,22 +64,17 @@
 
         <section class="panel">
           <h2>الأقسام الفرعية</h2>
-          <div class="chips" id="subcategoryChips"></div>
-        </section>
-
-        <section class="panel">
-          <h2>أشهر الماركات</h2>
-          <div class="brands-grid" id="categoryBrands"></div>
-        </section>
-
-        <section class="panel">
-          <h2>وصل حديثاً</h2>
-          <div class="products-grid" id="categoryNewArrivals"></div>
+          <div class="subcategories-grid" id="subcategoryCards"></div>
         </section>
 
         <section class="panel">
           <h2>منتجات القسم</h2>
           <div class="products-grid" id="categoryProducts"></div>
+        </section>
+
+        <section class="panel">
+          <h2>أشهر الماركات</h2>
+          <div class="brands-grid" id="categoryBrands"></div>
         </section>
       </section>
     </main>
@@ -135,6 +131,45 @@
         <p id="orderStatus" class="order-status"></p>
       </form>
     </aside>
+
+    <div id="authModal" class="modal-backdrop hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="تسجيل الدخول أو إنشاء حساب">
+        <div class="modal-header">
+          <h3>الحساب</h3>
+          <button class="icon-btn" type="button" id="closeAuthModal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="auth-tabs" id="authTabs">
+          <button class="pill active" type="button" data-tab="login">تسجيل الدخول</button>
+          <button class="pill" type="button" data-tab="register">إنشاء حساب</button>
+        </div>
+        <form id="loginForm" class="form-grid auth-form">
+          <label>رقم الهاتف<input name="phone" required /></label>
+          <label>كلمة المرور<input name="password" type="password" required /></label>
+          <div id="loginErrors" class="form-errors"></div>
+          <button class="btn" type="submit">دخول</button>
+        </form>
+        <form id="registerForm" class="form-grid auth-form hidden">
+          <label>الاسم<input name="name" required /></label>
+          <label>رقم الهاتف<input name="phone" required /></label>
+          <label>كلمة المرور<input name="password" type="password" required /></label>
+          <label>تأكيد كلمة المرور<input name="confirm_password" type="password" required /></label>
+          <div id="registerErrors" class="form-errors"></div>
+          <button class="btn" type="submit">إنشاء الحساب</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="ordersModal" class="modal-backdrop hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="طلباتي">
+        <div class="modal-header">
+          <h3>طلباتي</h3>
+          <button class="icon-btn" type="button" id="closeOrdersModal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="ordersList"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="config.js"></script>
     <script src="app.js"></script>
