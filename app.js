@@ -18,7 +18,6 @@ const state = {
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   cart: [],
-=======
   cart: JSON.parse(localStorage.getItem("msdr_cart") || "[]"),
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
@@ -544,7 +543,6 @@ function renderAuthState() {
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
-=======
   wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
   $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
   $("logoutBtn").onclick = () => {
@@ -648,7 +646,6 @@ function renderOrdersModal() {
   });
 }
 
-=======
  main
 function bindStaticEvents() {
   $("searchForm").addEventListener("submit", (e) => {
@@ -678,7 +675,6 @@ function bindStaticEvents() {
     if (e.target.id === "ordersModal") closeOrdersModal();
   });
 
-=======
  main
   $("authCloseBtn").onclick = closeAuthModal;
   $("authModal").addEventListener("click", (e) => {
@@ -710,7 +706,6 @@ function bindStaticEvents() {
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
-=======
     syncAuthHook({ action: "register", full_name, phone });
     renderAuthState();
     prefillCheckoutFromUser();
@@ -735,7 +730,6 @@ function bindStaticEvents() {
     renderAuthState();
     prefillCheckoutFromUser();
     renderCart();
-=======
     syncAuthHook({ action: "login", phone });
     renderAuthState();
     prefillCheckoutFromUser();
