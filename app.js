@@ -18,7 +18,6 @@ const state = {
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
   cart: [],
-=======
  codex/add-image_url-column-for-subcategories-tw941r
   users: JSON.parse(localStorage.getItem("msdr_users") || "[]"),
   currentUser: JSON.parse(localStorage.getItem("msdr_current_user") || "null"),
@@ -540,7 +539,6 @@ function renderAuthState() {
     return;
   }
  codex/add-image_url-column-for-subcategories-e3291k
-=======
  codex/add-image_url-column-for-subcategories-tw941r
  main
   wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='myOrdersBtn'>طلباتي</button><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
@@ -553,7 +551,6 @@ function renderAuthState() {
     prefillCheckoutFromUser();
     renderCart();
  codex/add-image_url-column-for-subcategories-e3291k
-=======
   wrap.innerHTML = `<div class='user-menu'><button class='btn btn-secondary' type='button' id='userMenuBtn'>${state.currentUser.full_name}</button><div class='user-dropdown' id='userDropdown'><button type='button' id='logoutBtn'>تسجيل الخروج</button></div></div>`;
   $("userMenuBtn").onclick = () => $("userDropdown").classList.toggle("open");
   $("logoutBtn").onclick = () => {
@@ -572,7 +569,6 @@ function openAuthModal(tab = "login") {
   if (!modal) return;
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
-=======
   $("authModal").classList.remove("hidden");
   $("authModal").setAttribute("aria-hidden", "false");
  main
@@ -595,7 +591,6 @@ function switchAuthTab(tab) {
   $("loginForm").classList.toggle("hidden", tab !== "login");
   $("registerForm").classList.toggle("hidden", tab !== "register");
   if ($("authMessage")) $("authMessage").textContent = "";
-=======
   $("authModal").classList.add("hidden");
   $("authModal").setAttribute("aria-hidden", "true");
   $("authMessage").textContent = "";
@@ -613,7 +608,6 @@ function setAuthMessage(msg, isError = true) {
   const el = $("authMessage");
  codex/add-image_url-column-for-subcategories-e3291k
   if (!el) return;
-=======
  main
   el.textContent = msg;
   el.classList.toggle("error", isError);
@@ -628,7 +622,6 @@ function prefillCheckoutFromUser() {
 }
 
  codex/add-image_url-column-for-subcategories-e3291k
-=======
  codex/add-image_url-column-for-subcategories-tw941r
  main
 function openOrdersModal() {
@@ -650,7 +643,6 @@ function renderOrdersModal() {
   const wrap = $("ordersList");
  codex/add-image_url-column-for-subcategories-e3291k
   if (!wrap) return;
-=======
  main
   if (!orders.length) {
     wrap.innerHTML = `<p class='empty-state'>لا توجد طلبات مسجلة لهذا الحساب حتى الآن.</p>`;
@@ -694,7 +686,6 @@ function renderOrdersModal() {
 }
 
  codex/add-image_url-column-for-subcategories-e3291k
-=======
  main
  main
 function bindStaticEvents() {
@@ -776,7 +767,6 @@ function bindStaticEvents() {
 
  codex/add-image_url-column-for-subcategories-e3291k
   if (loginForm) loginForm.addEventListener("submit", (e) => {
-=======
  codex/add-image_url-column-for-subcategories-tw941r
   $("ordersCloseBtn").onclick = closeOrdersModal;
   $("ordersModal").addEventListener("click", (e) => {
@@ -834,7 +824,6 @@ function bindStaticEvents() {
     if (!user) return setAuthMessage("بيانات تسجيل الدخول غير صحيحة.");
     setCurrentUser(user);
  codex/add-image_url-column-for-subcategories-e3291k
-=======
  codex/add-image_url-column-for-subcategories-tw941r
  main
     applyCartAfterLogin(user);
@@ -843,7 +832,6 @@ function bindStaticEvents() {
     prefillCheckoutFromUser();
     renderCart();
  codex/add-image_url-column-for-subcategories-e3291k
-=======
     syncAuthHook({ action: "login", phone });
     renderAuthState();
     prefillCheckoutFromUser();
@@ -855,7 +843,6 @@ function bindStaticEvents() {
 
  codex/add-image_url-column-for-subcategories-e3291k
   if (checkoutForm) checkoutForm.addEventListener("submit", (e) => {
-=======
   $("checkoutForm").addEventListener("submit", (e) => {
  main
     e.preventDefault();
