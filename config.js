@@ -7,7 +7,7 @@ window.APP_CONFIG = {
     site_title: "المصدر",
     currency: "جنيه",
     shipping: "0",
-    whatsapp_number: "201000000000",
+    whatsapp_number: "201025048784",
     write_orders: "false"
   }
 };
