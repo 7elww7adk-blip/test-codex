@@ -20,7 +20,13 @@ const state = {
   sort: "newest",
   cart: [],
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
-  heroIndex: 0
+  heroIndex: 0,
+  currentProductId: "",
+  ui: {
+    productsLimit: { category: 0, search: 0, favorites: 0, similar: 0 },
+    localSearch: { category: "", search: "", favorites: "" }
+  },
+  isLoading: true
 };
 
 const memoryCache = new Map();
@@ -38,8 +44,89 @@ const formatMoney = (n) => `${asNum(n).toLocaleString("ar-EG")} ${state.data.set
 const sortBy = (arr) => [...arr].sort((a, b) => asNum(a.sort, 9999) - asNum(b.sort, 9999));
 const parseImages = (s) => String(s || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
 const safeImage = (url) => (url && /^https?:\/\//i.test(url) ? url : PLACEHOLDER_IMAGE);
+const imageAttrs = (url, alt = "") => `src="${safeImage(url)}" alt="${alt}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}';this.classList.add('img-fallback')"`;
+const getDefaultLimit = () => (window.matchMedia("(max-width: 600px)").matches ? 12 : 20);
 const normalizePhone = (phone) => String(phone || "").replace(/\D/g, "");
 const userStorageKey = (phone) => `msdr_cart_user_${normalizePhone(phone)}`;
+
+
+function saveLastRoute(searchStr = location.search) {
+  const p = new URLSearchParams(searchStr);
+  const v = p.get("view") || state.currentView;
+  if (["category", "search", "product", "favorites"].includes(v)) localStorage.setItem("msdr_last_route", `?${p.toString()}`);
+}
+
+function getFavorites() {
+  return JSON.parse(localStorage.getItem("msdr_favorites") || "[]");
+}
+
+function saveFavorites(ids) {
+  localStorage.setItem("msdr_favorites", JSON.stringify([...new Set(ids)]));
+}
+
+function isFavorite(productId) {
+  return getFavorites().includes(productId);
+}
+
+function toggleFavorite(productId) {
+  const current = getFavorites();
+  const exists = current.includes(productId);
+  const next = exists ? current.filter((x) => x !== productId) : [...current, productId];
+  saveFavorites(next);
+  showToast(exists ? "تمت الإزالة من المفضلة" : "تمت الإضافة للمفضلة");
+}
+
+function debounce(fn, wait = 200) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function ensureLimit(viewName) {
+  if (!state.ui.productsLimit[viewName]) state.ui.productsLimit[viewName] = getDefaultLimit();
+}
+
+function resetLimit(viewName) {
+  state.ui.productsLimit[viewName] = getDefaultLimit();
+}
+
+function getDiscountPercent(p) {
+  const oldPrice = asNum(p.old_price || p.compare_at_price, 0);
+  const current = getProductEffectivePrice(p);
+  if (asNum(p.discount_percent, 0) > 0) return asNum(p.discount_percent);
+  if (oldPrice > current && current > 0) return Math.round(((oldPrice - current) / oldPrice) * 100);
+  return 0;
+}
+
+function getProductBadges(p) {
+  const badges = [];
+  const discount = getDiscountPercent(p);
+  if (p.new_arrival) badges.push(`<span class="badge badge-new">جديد</span>`);
+  if (discount > 0) badges.push(`<span class="badge badge-discount">خصم -${discount}%</span>`);
+  if (isTruthy(p.best_seller)) badges.push(`<span class="badge badge-best">الأكثر مبيعًا</span>`);
+  return badges.join("");
+}
+
+function getProductUrl(productId) {
+  return `${location.origin}${location.pathname}?view=product&id=${encodeURIComponent(productId)}`;
+}
+
+async function copyToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  return false;
+}
+
+function renderProductPrice(p) {
+  const price = getProductEffectivePrice(p);
+  const oldPrice = asNum(p.old_price || p.compare_at_price, 0);
+  const discount = getDiscountPercent(p);
+  return `<div class="price-block"><span class='price'>${formatMoney(price)}</span>${oldPrice > price ? `<span class='old-price'>${formatMoney(oldPrice)}</span>` : ""}${discount > 0 ? `<span class='discount-chip'>-${discount}%</span>` : ""}</div>`;
+}
 
 function clearCacheWhenRefreshRequested() {
   const p = new URLSearchParams(location.search);
@@ -187,7 +274,11 @@ async function loadData() {
       available: isTruthy(p.available),
       sort: p.sort,
       new_arrival: isTruthy(p.new_arrival),
-      description: p.description || ""
+      best_seller: isTruthy(p.best_seller),
+      description: p.description || "",
+      specs: p.specs || "",
+      old_price: asNum(p.old_price || p.compare_at_price, 0),
+      discount_percent: asNum(p.discount_percent, 0)
     })),
     brands: brands.map((b) => ({ ...b, enabled: isTruthy(b.enabled), featured: "featured" in b ? isTruthy(b.featured) : null })),
     mainCategories: sortBy(mainCategories.filter((c) => isTruthy(c.enabled))),
@@ -197,9 +288,11 @@ async function loadData() {
   };
 }
 
-function updateRoute(params = {}) {
+function updateRoute(params = {}, opts = { scroll: "none" }) {
+  const prev = { cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery, view: state.currentView };
   const search = new URLSearchParams(location.search);
-  search.set("view", params.view ?? state.currentView ?? "home");
+  const view = params.view ?? state.currentView ?? "home";
+  search.set("view", view);
 
   const cat = params.cat ?? state.currentCategory;
   const sub = params.sub ?? state.selectedSubcategory;
@@ -208,6 +301,7 @@ function updateRoute(params = {}) {
   const minPrice = params.min_price ?? state.minPrice;
   const maxPrice = params.max_price ?? state.maxPrice;
   const sort = params.sort ?? state.sort ?? "newest";
+  const id = params.id ?? state.currentProductId;
 
   cat ? search.set("cat", cat) : search.delete("cat");
   sub ? search.set("sub", sub) : search.delete("sub");
@@ -216,10 +310,23 @@ function updateRoute(params = {}) {
   minPrice ? search.set("min_price", minPrice) : search.delete("min_price");
   maxPrice ? search.set("max_price", maxPrice) : search.delete("max_price");
   sort && sort !== "newest" ? search.set("sort", sort) : search.delete("sort");
+  id && view === "product" ? search.set("id", id) : search.delete("id");
 
+  if (view === "category" && (prev.cat !== cat || prev.sub !== sub || prev.brand !== brand || prev.view !== view)) resetLimit("category");
+  if (view === "search" && (prev.q !== q || prev.brand !== brand || prev.view !== view)) resetLimit("search");
+  if (view === "favorites" && prev.view !== view) resetLimit("favorites");
+
+  setLoading(true);
   history.pushState({}, "", `?${search.toString()}`);
+  saveLastRoute(`?${search.toString()}`);
   syncStateFromRoute();
   render();
+  requestAnimationFrame(() => {
+    setLoading(false);
+    if (opts.scroll === "top") setTimeout(scrollToTop, 0);
+    else if (opts.scroll === "products") setTimeout(scrollToProducts, 0);
+    else if (opts.scroll === "view") setTimeout(scrollToViewStart, 0);
+  });
 }
 
 function parseFiltersFromUrl() {
@@ -240,6 +347,7 @@ function syncStateFromRoute() {
   state.selectedSubcategory = p.get("sub") || "";
   state.selectedBrand = filters.brand;
   state.searchQuery = p.get("q") || "";
+  state.currentProductId = p.get("id") || "";
   state.minPrice = filters.minPrice;
   state.maxPrice = filters.maxPrice;
   state.sort = filters.sort;
@@ -266,9 +374,14 @@ function applyProductFilters(products) {
   return filtered;
 }
 
-function filtersTemplate({ brands = [] }) {
+function filtersTemplate({ brands = [], subcategories = [], view = "category" }) {
   const currentSort = state.sort || "newest";
+  const showSubcats = view === "category";
   return `<div class="filters-card">
+    ${showSubcats ? `<div class="filter-group"><h4>الأقسام الفرعية</h4>
+      <label class="filter-choice"><input type="radio" name="filterSub" value="" ${!state.selectedSubcategory ? "checked" : ""} /> الكل</label>
+      ${subcategories.map((sub) => `<label class="filter-choice"><input type="radio" name="filterSub" value="${sub}" ${state.selectedSubcategory === sub ? "checked" : ""} /> ${sub}</label>`).join("")}
+    </div>` : ""}
     <div class="filter-group">
       <h4>الماركة</h4>
       <label class="filter-choice"><input type="radio" name="filterBrand" value="" ${!state.selectedBrand ? "checked" : ""} /> كل الماركات</label>
@@ -315,6 +428,48 @@ function closeFiltersSheet() {
   $("filtersSheet")?.setAttribute("aria-hidden", "true");
 }
 
+function getHeaderOffset() {
+  const header = document.querySelector("header") || document.getElementById("siteHeader");
+  if (!header) return 0;
+
+  const style = window.getComputedStyle(header);
+  const pos = style.position;
+  if (pos !== "fixed" && pos !== "sticky") return 0;
+
+  const rect = header.getBoundingClientRect();
+  return Math.ceil(rect.height) + 8;
+}
+
+function scrollToElementWithOffset(el) {
+  if (!el) return;
+  const offset = getHeaderOffset();
+  const top = window.pageYOffset + el.getBoundingClientRect().top - offset;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function scrollToProducts() {
+  const el = document.getElementById("productsAnchor") || document.getElementById("productsSectionTitle") || document.getElementById("productsGrid");
+  if (!el) return;
+  scrollToElementWithOffset(el);
+}
+
+function scrollToViewStart() {
+  const el = document.querySelector("main") || document.getElementById("app");
+  if (!el) return scrollToTop();
+  scrollToElementWithOffset(el);
+}
+
+function setLoading(isLoading) {
+  const bar = document.getElementById("topLoader");
+  if (!bar) return;
+  bar.classList.toggle("is-loading", !!isLoading);
+  bar.setAttribute("aria-hidden", isLoading ? "false" : "true");
+}
+
 function openFiltersSheet() {
   $("filtersSheet")?.classList.remove("hidden");
   $("filtersSheetOverlay")?.classList.remove("hidden");
@@ -325,19 +480,20 @@ function bindFiltersEvents(viewName) {
   const applyFilter = (sourceBtn) => {
     const root = sourceBtn?.closest(".filters-card") || document;
     const chosen = root.querySelector('input[name="filterBrand"]:checked');
+    const chosenSub = root.querySelector('input[name="filterSub"]:checked');
     const min = root.querySelector('#filterMinPrice')?.value?.trim() || "";
     const max = root.querySelector('#filterMaxPrice')?.value?.trim() || "";
     const sort = root.querySelector('#filterSort')?.value || "newest";
     updateRoute({
       view: viewName,
       cat: state.currentCategory,
-      sub: state.selectedSubcategory,
+      sub: viewName === "category" ? (chosenSub?.value || "") : state.selectedSubcategory,
       q: state.searchQuery,
       brand: chosen?.value || "",
       min_price: min,
       max_price: max,
       sort
-    });
+    }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
   };
 
@@ -345,13 +501,13 @@ function bindFiltersEvents(viewName) {
     updateRoute({
       view: viewName,
       cat: state.currentCategory,
-      sub: state.selectedSubcategory,
+      sub: "",
       q: state.searchQuery,
       brand: "",
       min_price: "",
       max_price: "",
       sort: "newest"
-    });
+    }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
   };
 
@@ -382,11 +538,17 @@ function featuredBrands(sourceBrands) {
 
 function productCard(p) {
   const inStock = p.available && p.stock_qty > 0;
-  return `<article class="card product-card">
-    <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
-    <h3>${p.name}</h3>
+  const favoriteClass = isFavorite(p.id) ? "active" : "";
+  return `<article class="card product-card" data-product-card data-id="${p.id}">
+    <div class="card-media-wrap" data-open-product="${p.id}">
+      <img ${imageAttrs(p.image, p.name)} />
+      <div class="badges-row">${getProductBadges(p)}</div>
+      <button class="icon-btn fav-toggle ${favoriteClass}" type="button" data-fav="${p.id}" aria-label="المفضلة"><i class="fa-solid fa-heart"></i></button>
+      <button class="icon-btn share-toggle" type="button" data-share="${p.id}" aria-label="مشاركة"><i class="fa-solid fa-share-nodes"></i></button>
+    </div>
+    <h3><a href="?view=product&id=${encodeURIComponent(p.id)}" data-open-product="${p.id}">${p.name}</a></h3>
     <p>${p.brand_name || ""}</p>
-    <p>${p.sale_price > 0 ? `<span class='price'>${formatMoney(p.sale_price)}</span><span class='old-price'>${formatMoney(p.price)}</span>` : `<span class='price'>${formatMoney(p.price)}</span>`}</p>
+    ${renderProductPrice(p)}
     ${!inStock ? `<p class="badge-unavailable">غير متاح</p>` : ""}
     <button class="btn add-cart" data-id="${p.id}" ${inStock ? "" : "disabled"}>أضف للسلة</button>
   </article>`;
@@ -399,6 +561,12 @@ function emptyState(message) {
 function renderHome() {
   const { mainCategories, banners, brands } = state.data;
   $("homeView").classList.remove("hidden");
+  const homeSk = $("homeCategoriesSkeleton");
+  if (homeSk) {
+    homeSk.innerHTML = Array.from({ length: 6 }).map(() => `<article class="card skeleton-card"><div class="skeleton skeleton-media"></div><div class="skeleton skeleton-line"></div></article>`).join("");
+    homeSk.classList.toggle("hidden", !state.isLoading);
+  }
+  $("homeCategories")?.classList.toggle("hidden", state.isLoading);
 
   const heroSlides = $("heroSlides");
   const heroDots = $("heroDots");
@@ -441,41 +609,85 @@ function getCategoryBrands(catName) {
   });
 }
 
+function getVisibleProducts(viewName, products) {
+  ensureLimit(viewName);
+  return products.slice(0, state.ui.productsLimit[viewName]);
+}
+
+function renderLoadMore(viewName, total, btnId) {
+  const btn = $(btnId);
+  if (!btn) return;
+  const canLoadMore = total > state.ui.productsLimit[viewName];
+  btn.classList.toggle("hidden", !canLoadMore);
+  btn.onclick = canLoadMore
+    ? () => {
+      state.ui.productsLimit[viewName] += getDefaultLimit();
+      render();
+    }
+    : null;
+}
+
+function bindLocalSearch(inputId, viewName) {
+  const input = $(inputId);
+  if (!input) return;
+  input.value = state.ui.localSearch[viewName] || "";
+  const onInput = debounce((value) => {
+    state.ui.localSearch[viewName] = value;
+    resetLimit(viewName);
+    render();
+  }, 200);
+  input.oninput = (e) => onInput(e.target.value.trim().toLowerCase());
+}
+
 function renderCategory() {
   const { products, subCategories, banners } = state.data;
+  const sk = $("categoryProductsSkeleton");
+  if (sk) {
+    sk.innerHTML = Array.from({ length: getDefaultLimit() }).map(() => `<article class="card skeleton-card"><div class="skeleton skeleton-media"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line short"></div></article>`).join("");
+    sk.classList.toggle("hidden", !state.isLoading);
+  }
+  $("categoryProducts")?.classList.toggle("hidden", state.isLoading);
   const cat = state.currentCategory || DEFAULT_CATEGORY;
   const categoryProducts = products.filter((p) => p.main_category_name === cat);
   const baseFiltered = categoryProducts.filter((p) => (!state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory) && (!state.selectedBrand || p.brand_name === state.selectedBrand));
+  const localQ = state.ui.localSearch.category || "";
+  const localFiltered = baseFiltered.filter((p) => !localQ || [p.name, p.brand_name, p.description, p.specs].join(" ").toLowerCase().includes(localQ));
   const availableBrands = [...new Set(categoryProducts.filter((p) => !state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory).map((p) => p.brand_name).filter(Boolean))];
-  const filtered = applyProductFilters(baseFiltered);
+  const filterSubcats = sortBy(subCategories.filter((sub) => sub.main_category_name === cat)).map((sub) => sub.sub_category_name);
+  const filtered = applyProductFilters(localFiltered);
+  const visible = getVisibleProducts("category", filtered);
 
   const catBanner = banners.find((b) => b.main_category_name === cat && !b.sub_category_name && !b.brand_name)
     || banners.find((b) => b.main_category_name === cat)
     || banners[0]
     || { title: cat, image_url: PLACEHOLDER_IMAGE };
 
-  $("categoryBanner").innerHTML = `<img src="${safeImage(catBanner.image_url)}" alt="${catBanner.title || cat}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMAGE}'" />
+  $("categoryBanner").innerHTML = `<img ${imageAttrs(catBanner.image_url, catBanner.title || cat)} />
   <div class="overlay">
     <h1>${cat}</h1>
     ${state.selectedBrand ? `<p><strong>${state.selectedBrand}</strong></p>` : ""}
     <button class="btn btn-secondary" id="backHomeBtn">العودة للرئيسية</button>
   </div>`;
-  $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
+  $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" }, { scroll: "top" });
 
   const subs = subCategories.filter((s) => s.main_category_name === cat);
-  $("subcategoryCards").innerHTML = [`<article class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''><div class='subcategory-image-wrap'><img src='${PLACEHOLDER_IMAGE}' alt='الكل' /></div><h3>الكل</h3></article>`, ...subs.map((s) => `<article class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'><div class='subcategory-image-wrap'><img src='${safeImage(s.image_url || "")}' alt='${s.sub_category_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /></div><h3>${s.sub_category_name}</h3></article>`)].join("");
-  $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "" }));
+  $("subcategoryCards").innerHTML = [`<article class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''><div class='subcategory-image-wrap'><img ${imageAttrs(PLACEHOLDER_IMAGE, "الكل")} /></div><h3>الكل</h3></article>`, ...subs.map((s) => `<article class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'><div class='subcategory-image-wrap'><img ${imageAttrs(s.image_url || "", s.sub_category_name)} /></div><h3>${s.sub_category_name}</h3></article>`)].join("");
+  $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => {
+    updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "", min_price: "", max_price: "", sort: "" }, { scroll: "products" });
+  });
 
-  $("categoryProducts").innerHTML = filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
-  renderFiltersUI({ view: "category", brands: availableBrands });
+  $("categoryProducts").innerHTML = filtered.length ? visible.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
+  renderFiltersUI({ view: "category", brands: availableBrands, subcategories: filterSubcats });
+  bindLocalSearch("categoryLocalInput", "category");
+  renderLoadMore("category", filtered.length, "categoryLoadMoreBtn");
 
   const catBrands = getCategoryBrands(cat);
   $("categoryBrands").innerHTML = catBrands.length
-    ? catBrands.map((b) => `<article class='card brand-card'><img src='${safeImage(b.logo_url)}' alt='${b.brand_name}' loading='lazy' onerror="this.src='${PLACEHOLDER_IMAGE}'" /><h3>${b.brand_name}</h3><button class='pill' data-brand='${b.brand_name}'>تصفية</button></article>`).join("")
+    ? catBrands.map((b) => `<article class='card brand-card'><img ${imageAttrs(b.logo_url, b.brand_name)} /><h3>${b.brand_name}</h3><button class='pill' data-brand='${b.brand_name}'>تصفية</button></article>`).join("")
     : emptyState("لا توجد ماركات مميزة لهذا القسم.");
   $("categoryBrands").querySelectorAll("button[data-brand]").forEach((b) => b.onclick = () => updateRoute({ view: "category", cat, sub: state.selectedSubcategory, brand: b.dataset.brand, q: "" }));
 
-  bindAddToCart();
+  bindProductInteractions();
 }
 
 function renderSearch() {
@@ -488,11 +700,16 @@ function renderSearch() {
   view.classList.remove("hidden");
   const hits = state.data.products.filter((p) => [p.name, p.brand_name, p.main_category_name, p.sub_category_name, p.description].join(" ").toLowerCase().includes(q));
   const branded = hits.filter((p) => !state.selectedBrand || p.brand_name === state.selectedBrand);
-  const filtered = applyProductFilters(branded);
+  const localQ = state.ui.localSearch.search || "";
+  const locallyFiltered = branded.filter((p) => !localQ || [p.name, p.brand_name, p.description, p.specs].join(" ").toLowerCase().includes(localQ));
+  const filtered = applyProductFilters(locallyFiltered);
+  const visible = getVisibleProducts("search", filtered);
   const brands = [...new Set(hits.map((p) => p.brand_name).filter(Boolean))];
-  $("searchResults").innerHTML = filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد نتائج بحث مطابقة.");
+  $("searchResults").innerHTML = filtered.length ? visible.map(productCard).join("") : emptyState("لا توجد نتائج بحث مطابقة.");
   renderFiltersUI({ view: "search", brands });
-  bindAddToCart();
+  bindLocalSearch("searchLocalInput", "search");
+  renderLoadMore("search", filtered.length, "searchLoadMoreBtn");
+  bindProductInteractions();
 }
 
 function handleBannerNavigation(b) {
@@ -506,8 +723,8 @@ function gotoBrand(brandName) {
   updateRoute({ view: "category", cat, brand: brandName, sub: "", q: "" });
 }
 
-function bindAddToCart() {
-  document.querySelectorAll(".add-cart").forEach((btn) => btn.onclick = () => {
+function bindAddToCart(root = document) {
+  root.querySelectorAll(".add-cart").forEach((btn) => btn.onclick = () => {
     const p = state.data.products.find((x) => x.id === btn.dataset.id);
     if (!p) return;
     const found = state.cart.find((x) => x.id === p.id);
@@ -515,12 +732,99 @@ function bindAddToCart() {
       found.qty += 1;
       showToast("تمت زيادة الكمية في السلة");
     } else {
-      state.cart.push({ id: p.id, name: p.name, price: p.sale_price > 0 ? p.sale_price : p.price, image: p.image, qty: 1 });
+      state.cart.push({ id: p.id, name: p.name, price: getProductEffectivePrice(p), image: p.image, qty: 1 });
       showToast("تمت إضافة المنتج إلى السلة");
     }
     saveCart();
     renderCart();
   });
+}
+
+function bindProductInteractions(root = document) {
+  bindAddToCart(root);
+  root.querySelectorAll("[data-open-product]").forEach((el) => el.onclick = (e) => {
+    e.preventDefault();
+    const id = el.dataset.openProduct;
+    if (!id) return;
+    updateRoute({ view: "product", id, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery }, { scroll: "top" });
+  });
+  root.querySelectorAll("[data-fav]").forEach((el) => el.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleFavorite(el.dataset.fav);
+    render();
+  });
+  root.querySelectorAll("[data-share]").forEach((el) => el.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = el.dataset.share;
+    const p = state.data.products.find((x) => x.id === id);
+    if (!p) return;
+    const url = getProductUrl(p.id);
+    const text = `${p.name} - ${url}`;
+    const target = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(target, "_blank");
+  });
+  root.querySelectorAll("[data-copy-link]").forEach((el) => el.onclick = async () => {
+    const id = el.dataset.copyLink;
+    const ok = await copyToClipboard(getProductUrl(id));
+    showToast(ok ? "تم نسخ الرابط" : "تعذر نسخ الرابط");
+  });
+}
+
+function renderProduct(productId) {
+  const product = state.data.products.find((p) => p.id === productId);
+  const wrap = $("productDetailsWrap");
+  if (!wrap) return;
+  if (!product) {
+    wrap.innerHTML = emptyState("المنتج غير موجود.");
+    return;
+  }
+  document.title = `${product.name} | المصدر`;
+  const similarAll = state.data.products.filter((p) => p.id !== product.id && (p.main_category_name === product.main_category_name || p.brand_name === product.brand_name));
+  const similarVisible = getVisibleProducts("similar", similarAll);
+  wrap.innerHTML = `<div class="product-view-grid">
+    <div>
+      <img class="product-main-image" ${imageAttrs(product.image, product.name)} id="openLightboxImage" />
+    </div>
+    <div>
+      <button class="text-link" type="button" id="backFromProductBtn">رجوع</button>
+      <h2>${product.name}</h2>
+      <div class="badges-row">${getProductBadges(product)}</div>
+      ${renderProductPrice(product)}
+      <p>${product.description || product.specs || "لا توجد تفاصيل إضافية"}</p>
+      <div class="product-actions">
+        <button class="btn add-cart" data-id="${product.id}">أضف للسلة</button>
+        <button class="btn btn-secondary" data-share="${product.id}">مشاركة واتساب</button>
+        <button class="btn btn-secondary" data-copy-link="${product.id}">نسخ الرابط</button>
+        <button class="btn btn-secondary" data-fav="${product.id}">مفضلة ❤️</button>
+      </div>
+    </div>
+  </div>
+  <section class="panel">
+    <h3>منتجات مشابهة</h3>
+    <div class="products-grid">${similarVisible.map(productCard).join("") || ""}</div>
+    <div class="load-more-wrap"><button class="btn btn-secondary ${similarAll.length > state.ui.productsLimit.similar ? "" : "hidden"}" id="similarLoadMoreBtn">تحميل المزيد</button></div>
+  </section>`;
+  $("backFromProductBtn").onclick = () => (history.length > 1 ? history.back() : updateRoute({ view: "category", cat: product.main_category_name, sub: "", brand: "", q: "" }));
+  $("openLightboxImage").onclick = () => {
+    $("lightboxImage").src = safeImage(product.image);
+    $("imageLightbox").classList.remove("hidden");
+    $("imageLightbox").setAttribute("aria-hidden", "false");
+  };
+  renderLoadMore("similar", similarAll.length, "similarLoadMoreBtn");
+  bindProductInteractions(wrap);
+}
+
+function renderFavorites() {
+  const ids = getFavorites();
+  const localQ = state.ui.localSearch.favorites || "";
+  const all = state.data.products.filter((p) => ids.includes(p.id) && (!localQ || [p.name, p.brand_name, p.description].join(" ").toLowerCase().includes(localQ)));
+  const visible = getVisibleProducts("favorites", all);
+  $("favoritesProducts").innerHTML = all.length ? visible.map(productCard).join("") : emptyState("لا توجد منتجات في المفضلة بعد.");
+  bindLocalSearch("favoritesLocalInput", "favorites");
+  renderLoadMore("favorites", all.length, "favoritesLoadMoreBtn");
+  bindProductInteractions($("favoritesView"));
 }
 
 function renderCart() {
@@ -682,10 +986,15 @@ function closeAuthModal() {
 function render() {
   renderHeaderCategories();
   renderAuthUI();
+  document.title = "المصدر";
   $("homeView").classList.toggle("hidden", state.currentView !== "home");
   $("categoryView").classList.toggle("hidden", state.currentView !== "category");
+  $("productView").classList.toggle("hidden", state.currentView !== "product");
+  $("favoritesView").classList.toggle("hidden", state.currentView !== "favorites");
   if (state.currentView === "home") renderHome();
   else if (state.currentView === "category") renderCategory();
+  else if (state.currentView === "product") renderProduct(state.currentProductId);
+  else if (state.currentView === "favorites") renderFavorites();
   renderSearch();
   if (!(state.currentView === "category" || state.currentView === "search")) {
     $("mobileFiltersBar")?.classList.add("hidden");
@@ -716,6 +1025,7 @@ function bindStaticEvents() {
     $("cartBackdrop").classList.add("hidden");
     $("cartDrawer").setAttribute("aria-hidden", "true");
   };
+  $("favoritesBtn").onclick = () => updateRoute({ view: "favorites", cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery }, { scroll: "top" });
   $("cartBtn").onclick = open;
   $("closeCart").onclick = close;
   $("cartBackdrop").onclick = close;
@@ -804,17 +1114,41 @@ function bindStaticEvents() {
     }
   };
 
-  window.__goHome = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
+  $("closeLightboxBtn")?.addEventListener("click", () => {
+    $("imageLightbox")?.classList.add("hidden");
+    $("imageLightbox")?.setAttribute("aria-hidden", "true");
+  });
+  $("imageLightbox")?.addEventListener("click", (e) => {
+    if (e.target.id === "imageLightbox") {
+      $("imageLightbox")?.classList.add("hidden");
+      $("imageLightbox")?.setAttribute("aria-hidden", "true");
+    }
+  });
+  const topBtn = $("scrollTopBtn");
+  const toggleTopBtn = () => topBtn?.classList.toggle("show", window.scrollY > 400);
+  window.addEventListener("scroll", toggleTopBtn);
+  toggleTopBtn();
+  topBtn && (topBtn.onclick = () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+  window.__goHome = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" }, { scroll: "top" });
 }
 
 (async function init() {
   try {
+    setLoading(true);
     clearCacheWhenRefreshRequested();
     loadCurrentUser();
     loadCart();
     bindStaticEvents();
-    await loadData();
+    if (!location.search) {
+      const last = localStorage.getItem("msdr_last_route");
+      if (last) history.replaceState({}, "", `${location.pathname}${last}`);
+    }
     syncStateFromRoute();
+    ["category", "search", "favorites", "similar"].forEach(ensureLimit);
+    await loadData();
+    state.isLoading = false;
+    setLoading(false);
     if (!state.currentCategory && state.currentView === "category") state.currentCategory = DEFAULT_CATEGORY;
     render();
     setInterval(() => {
@@ -826,6 +1160,7 @@ function bindStaticEvents() {
       render();
     });
   } catch (e) {
+    setLoading(false);
     $("appRoot").innerHTML = `<div class='panel empty-state'>تعذر تحميل بيانات المتجر حالياً. يرجى المحاولة لاحقاً.</div>`;
   }
 })();
