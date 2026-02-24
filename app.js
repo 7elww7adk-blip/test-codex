@@ -22,6 +22,7 @@ const state = {
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0,
   currentProductId: "",
+  currentOrderCode: "",
   ui: {
     productsLimit: { category: 0, search: 0, favorites: 0, similar: 0 },
     localSearch: { category: "", search: "", favorites: "" }
@@ -148,16 +149,21 @@ function saveUsers(users) {
   localStorage.setItem("msdr_users", JSON.stringify(users));
 }
 
-function getOrdersKey(phone) {
-  return `msdr_orders_user_${normalizePhone(phone)}`;
+function getOrdersStorageKey() {
+  return state.currentUser ? `msdr_orders_user_${normalizePhone(state.currentUser.phone)}` : "msdr_orders_guest";
 }
 
-function getOrders(phone) {
-  return JSON.parse(localStorage.getItem(getOrdersKey(phone)) || "[]");
+function getOrders() {
+  return JSON.parse(localStorage.getItem(getOrdersStorageKey()) || "[]");
 }
 
-function saveOrders(phone, orders) {
-  localStorage.setItem(getOrdersKey(phone), JSON.stringify(orders));
+function saveOrders(orders) {
+  localStorage.setItem(getOrdersStorageKey(), JSON.stringify(orders));
+}
+
+function findOrderByCode(oid) {
+  if (!oid) return null;
+  return getOrders().find((o) => o.order_code === oid) || null;
 }
 
 function getCartStorageKey() {
@@ -302,6 +308,7 @@ function updateRoute(params = {}, opts = { scroll: "none" }) {
   const maxPrice = params.max_price ?? state.maxPrice;
   const sort = params.sort ?? state.sort ?? "newest";
   const id = params.id ?? state.currentProductId;
+  const oid = params.oid ?? state.currentOrderCode;
 
   cat ? search.set("cat", cat) : search.delete("cat");
   sub ? search.set("sub", sub) : search.delete("sub");
@@ -311,6 +318,7 @@ function updateRoute(params = {}, opts = { scroll: "none" }) {
   maxPrice ? search.set("max_price", maxPrice) : search.delete("max_price");
   sort && sort !== "newest" ? search.set("sort", sort) : search.delete("sort");
   id && view === "product" ? search.set("id", id) : search.delete("id");
+  oid && view === "order_success" ? search.set("oid", oid) : search.delete("oid");
 
   if (view === "category" && (prev.cat !== cat || prev.sub !== sub || prev.brand !== brand || prev.view !== view)) resetLimit("category");
   if (view === "search" && (prev.q !== q || prev.brand !== brand || prev.view !== view)) resetLimit("search");
@@ -348,6 +356,7 @@ function syncStateFromRoute() {
   state.selectedBrand = filters.brand;
   state.searchQuery = p.get("q") || "";
   state.currentProductId = p.get("id") || "";
+  state.currentOrderCode = p.get("oid") || "";
   state.minPrice = filters.minPrice;
   state.maxPrice = filters.maxPrice;
   state.sort = filters.sort;
@@ -874,13 +883,123 @@ function getCustomerFormData() {
   return data;
 }
 
-function buildWhatsappMessage(customer) {
-  const subtotal = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
+function generateOrderCode() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const rand = String(Math.floor(1000 + Math.random() * 9000));
+  return `MSDR-${stamp}-${rand}`;
+}
+
+function getOrGenerateOrderCode(order) {
+  if (order.order_code) return order.order_code;
+  return generateOrderCode();
+}
+
+function buildOrderFromCartAndForm(customer) {
+  const subtotal = state.cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const shipping = asNum(state.data.settings.shipping || FALLBACK_SETTINGS.shipping);
   const total = subtotal + shipping;
-  const context = [state.currentCategory ? `القسم: ${state.currentCategory}` : "", state.selectedBrand ? `الماركة: ${state.selectedBrand}` : "", state.selectedSubcategory ? `القسم الفرعي: ${state.selectedSubcategory}` : ""].filter(Boolean).join(" | ");
-  const lines = state.cart.map((i, idx) => `${idx + 1}) ${i.name} - الكمية: ${i.qty} - سعر الوحدة: ${formatMoney(i.price)} - الإجمالي: ${formatMoney(i.price * i.qty)}`);
-  return [`طلب جديد من موقع المصدر`, context, `الاسم: ${customer.customer_name}`, `الهاتف: ${customer.phone}`, `المنطقة: ${customer.area}`, `العنوان: ${customer.address}`, customer.notes ? `ملاحظات: ${customer.notes}` : "", "", "المنتجات:", ...lines, "", `المجموع الفرعي: ${formatMoney(subtotal)}`, `الشحن: ${formatMoney(shipping)}`, `الإجمالي: ${formatMoney(total)}`].filter(Boolean).join("\n");
+  return {
+    created_at: new Date().toISOString(),
+    customer: {
+      name: customer.customer_name,
+      phone: customer.phone,
+      area: customer.area,
+      address: customer.address,
+      notes: customer.notes || ""
+    },
+    items: state.cart.map((i) => ({ id: i.id, name: i.name, price: asNum(i.price), qty: asNum(i.qty, 1), image_url: i.image || "" })),
+    subtotal,
+    shipping,
+    total,
+    whatsapp_number: (state.data.settings.whatsapp_number || FALLBACK_SETTINGS.whatsapp_number).replace(/\D/g, ""),
+    status: "sent_whatsapp"
+  };
+}
+
+function buildWhatsAppOrderMessage(order) {
+  const dateText = new Date(order.created_at).toLocaleString("ar-EG");
+  const distinctItems = order.items.length;
+  const totalPieces = order.items.reduce((sum, item) => sum + asNum(item.qty, 0), 0);
+  const itemsBlock = order.items
+    .map((item, idx) => `#${idx + 1} — *${item.name}*
+الكمية: ${item.qty}
+سعر الوحدة: ${formatMoney(item.price)}
+إجمالي الصنف: ${formatMoney(item.qty * item.price)}
+──────────────`)
+    .join("\n");
+
+  return [
+    "✅ *طلب جديد*",
+    `🧾 *كود الطلب:* ${order.order_code}`,
+    `📅 *التاريخ:* ${dateText}`,
+    "",
+    `👤 *العميل:* ${order.customer.name}`,
+    `📞 *الموبايل:* ${order.customer.phone}`,
+    `📍 *المنطقة:* ${order.customer.area}`,
+    `🏠 *العنوان:* ${order.customer.address}`,
+    order.customer.notes ? `📝 *ملاحظات:* ${order.customer.notes}` : "",
+    "",
+    "━━━━━━━━━━━━━━",
+    "📦 *ملخص الطلب*",
+    `• *عدد الأصناف:* ${distinctItems}`,
+    `• *إجمالي القطع:* ${totalPieces}`,
+    "━━━━━━━━━━━━━━",
+    "",
+    "🛒 *تفاصيل المنتجات*",
+    itemsBlock,
+    "━━━━━━━━━━━━━━",
+    "",
+    `💰 *الإجمالي الفرعي:* ${formatMoney(order.subtotal)}`,
+    `🚚 *الشحن:* ${formatMoney(order.shipping)}`,
+    `🧮 *الإجمالي النهائي:* ${formatMoney(order.total)}`,
+    "",
+    `🔁 *كود الطلب مرة أخرى:* ${order.order_code}`
+  ].filter(Boolean).join("\n");
+}
+
+function saveOrderToHistory(order) {
+  const orders = getOrders();
+  orders.unshift(order);
+  saveOrders(orders);
+}
+
+function openWhatsApp(message, number) {
+  const text = encodeURIComponent(message || "");
+  const to = String(number || "").replace(/\D/g, "");
+  window.open(`https://wa.me/${to}?text=${text}`, "_blank");
+}
+
+function renderOrderSuccess(oid) {
+  const order = findOrderByCode(oid);
+  const codeEl = $("orderSuccessCode");
+  const summaryEl = $("orderSuccessSummary");
+  const itemsEl = $("orderSuccessItems");
+  const totalsEl = $("orderSuccessTotals");
+  const customerEl = $("orderSuccessCustomer");
+  if (!codeEl || !summaryEl || !itemsEl || !totalsEl || !customerEl) return;
+  if (!order) {
+    codeEl.textContent = oid || "-";
+    summaryEl.innerHTML = `<p class='empty-state'>تعذر العثور على الطلب.</p>`;
+    itemsEl.innerHTML = "";
+    totalsEl.innerHTML = "";
+    customerEl.innerHTML = "";
+    return;
+  }
+  const distinctItems = order.items.length;
+  const totalPieces = order.items.reduce((s, i) => s + asNum(i.qty, 0), 0);
+  codeEl.textContent = order.order_code;
+  summaryEl.innerHTML = `<p>عدد الأصناف: <strong>${distinctItems}</strong></p><p>إجمالي القطع: <strong>${totalPieces}</strong></p>`;
+  itemsEl.innerHTML = order.items.map((i) => `<article class='order-success-item'><strong>${i.name}</strong><p>الكمية: ${i.qty}</p><p>سعر الوحدة: ${formatMoney(i.price)}</p><p>إجمالي الصنف: ${formatMoney(i.qty * i.price)}</p></article>`).join("");
+  totalsEl.innerHTML = `<p>الإجمالي الفرعي: <strong>${formatMoney(order.subtotal)}</strong></p><p>الشحن: <strong>${formatMoney(order.shipping)}</strong></p><p>الإجمالي النهائي: <strong>${formatMoney(order.total)}</strong></p>`;
+  customerEl.innerHTML = `<p>الاسم: ${order.customer?.name || "-"}</p><p>الموبايل: ${order.customer?.phone || "-"}</p><p>المنطقة: ${order.customer?.area || "-"}</p><p>العنوان: ${order.customer?.address || "-"}</p>${order.customer?.notes ? `<p>ملاحظات: ${order.customer.notes}</p>` : ""}`;
+  $("copyOrderCodeBtn").onclick = async () => {
+    const ok = await copyToClipboard(order.order_code);
+    showToast(ok ? "تم نسخ الكود" : "تعذر نسخ الكود");
+  };
+  $("orderSuccessWhatsappBtn").onclick = () => openWhatsApp(order.whatsapp_message, order.whatsapp_number);
+  $("orderSuccessContinueBtn").onclick = () => updateRoute({ view: state.currentCategory ? "category" : "home", cat: state.currentCategory, sub: "", brand: "", q: "" }, { scroll: "top" });
 }
 
 async function postOrder(customer) {
@@ -904,42 +1023,24 @@ async function postOrder(customer) {
   return resp.json();
 }
 
-function persistOrderLocal(customer) {
-  if (!state.currentUser) return;
-  const subtotal = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = asNum(state.data.settings.shipping || FALLBACK_SETTINGS.shipping);
-  const total = subtotal + shipping;
-  const order = {
-    created_at: new Date().toISOString(),
-    customer_name: customer.customer_name,
-    phone: customer.phone,
-    area: customer.area,
-    address: customer.address,
-    notes: customer.notes || "",
-    items: state.cart.map((i) => ({ ...i })),
-    subtotal,
-    shipping,
-    total,
-    status: "pending"
-  };
-  const orders = getOrders(state.currentUser.phone);
-  orders.unshift(order);
-  saveOrders(state.currentUser.phone, orders);
-}
-
 function renderOrdersModal() {
-  if (!state.currentUser) return;
-  const orders = getOrders(state.currentUser.phone);
+  const orders = getOrders();
   $("ordersList").innerHTML = orders.length ? orders.map((o, idx) => `<article class='card order-card'>
-    <h4>طلب #${orders.length - idx}</h4>
+    <h4>كود الطلب: ${o.order_code || "-"}</h4>
     <p>التاريخ: ${new Date(o.created_at).toLocaleString("ar-EG")}</p>
     <p>الإجمالي: ${formatMoney(o.total)} - المنتجات: ${o.items.length}</p>
+    <button class='text-link' data-open-order='${o.order_code || ""}'>فتح صفحة النجاح</button>
     <details>
       <summary>عرض التفاصيل</summary>
       <ul>${o.items.map((i) => `<li>${i.name} × ${i.qty}</li>`).join("")}</ul>
     </details>
     <button class='btn btn-secondary' data-reorder='${idx}'>إعادة الطلب</button>
   </article>`).join("") : `<p class='empty-state'>لا توجد طلبات سابقة.</p>`;
+  $("ordersList").querySelectorAll("button[data-open-order]").forEach((btn) => btn.onclick = () => {
+    closeOrdersModal();
+    updateRoute({ view: "order_success", oid: btn.dataset.openOrder }, { scroll: "top" });
+  });
+
   $("ordersList").querySelectorAll("button[data-reorder]").forEach((btn) => btn.onclick = () => {
     const order = orders[Number(btn.dataset.reorder)];
     if (!order) return;
@@ -952,7 +1053,6 @@ function renderOrdersModal() {
 }
 
 function openOrdersModal() {
-  if (!state.currentUser) return;
   renderOrdersModal();
   $("ordersModal").classList.remove("hidden");
 }
@@ -993,10 +1093,12 @@ function render() {
   $("categoryView").classList.toggle("hidden", state.currentView !== "category");
   $("productView").classList.toggle("hidden", state.currentView !== "product");
   $("favoritesView").classList.toggle("hidden", state.currentView !== "favorites");
+  $("orderSuccessView").classList.toggle("hidden", state.currentView !== "order_success");
   if (state.currentView === "home") renderHome();
   else if (state.currentView === "category") renderCategory();
   else if (state.currentView === "product") renderProduct(state.currentProductId);
   else if (state.currentView === "favorites") renderFavorites();
+  else if (state.currentView === "order_success") renderOrderSuccess(state.currentOrderCode);
   renderSearch();
   if (!(state.currentView === "category" || state.currentView === "search")) {
     $("mobileFiltersBar")?.classList.add("hidden");
@@ -1084,14 +1186,30 @@ function bindStaticEvents() {
     showToast("تم تسجيل الدخول بنجاح");
   });
 
-  $("checkoutForm").addEventListener("submit", (e) => {
+  $("checkoutForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!state.cart.length) return ($("formErrors").textContent = "السلة فارغة.");
     const customer = getCustomerFormData();
     if (!customer) return;
-    const number = (state.data.settings.whatsapp_number || FALLBACK_SETTINGS.whatsapp_number).replace(/\D/g, "");
-    const text = encodeURIComponent(buildWhatsappMessage(customer));
-    window.open(`https://wa.me/${number}?text=${text}`, "_blank");
+
+    let order = buildOrderFromCartAndForm(customer);
+    if (isTruthy(state.data.settings.write_orders || FALLBACK_SETTINGS.write_orders)) {
+      try {
+        const result = await postOrder(customer);
+        if (result?.order_id) order.order_code = String(result.order_id);
+      } catch (_) {}
+    }
+
+    order.order_code = getOrGenerateOrderCode(order);
+    order.whatsapp_message = buildWhatsAppOrderMessage(order);
+    saveOrderToHistory(order);
+    openWhatsApp(order.whatsapp_message, order.whatsapp_number);
+
+    state.cart = [];
+    saveCart();
+    renderCart();
+    showToast("تم إنشاء الطلب");
+    updateRoute({ view: "order_success", oid: order.order_code }, { scroll: "top" });
   });
 
   $("saveOrderBtn").onclick = async () => {
@@ -1106,7 +1224,10 @@ function bindStaticEvents() {
       $("orderStatus").textContent = "جاري تسجيل الطلب...";
       const result = await postOrder(customer);
       $("orderStatus").textContent = result?.order_id ? `تم تسجيل الطلب. رقم الطلب: ${result.order_id}` : "تم تسجيل الطلب بنجاح.";
-      persistOrderLocal(customer);
+      const order = buildOrderFromCartAndForm(customer);
+      order.order_code = result?.order_id ? String(result.order_id) : getOrGenerateOrderCode(order);
+      order.whatsapp_message = buildWhatsAppOrderMessage(order);
+      saveOrderToHistory(order);
       state.cart = [];
       saveCart();
       renderCart();

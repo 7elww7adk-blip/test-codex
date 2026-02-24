@@ -375,3 +375,14 @@ h2 { margin-top: 0; }
 .product-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .img-fallback { object-fit: contain !important; padding: 20px; background: linear-gradient(135deg, #f3f6f5, #e6ecea); }
 @media (max-width: 900px) { .product-view-grid { grid-template-columns: 1fr; } }
+
+.order-success-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; display: grid; gap: 12px; }
+.order-code-wrap { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#orderSuccessCode { font-size: 1.05rem; background: #eef8f3; color: var(--primary-dark); padding: 8px 12px; border-radius: 10px; }
+.order-success-summary, .order-success-items, .order-success-totals, .order-success-customer { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fcfefd; }
+.order-success-item { padding: 10px 0; border-bottom: 1px dashed #d7e5e0; }
+.order-success-item:last-child { border-bottom: 0; }
+.order-success-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .order-success-actions .btn { width: 100%; }
+}
