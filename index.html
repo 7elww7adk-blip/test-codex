@@ -11,6 +11,22 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div id="appPreloader" class="app-preloader" aria-hidden="false">
+      <div class="preloader-card">
+        <div class="preloader-title">جاري تحميل المتجر</div>
+
+        <div class="preloader-row">
+          <div class="preloader-spinner" aria-hidden="true"></div>
+          <div class="preloader-status" id="preloaderStatus">بدء التحميل…</div>
+        </div>
+
+        <div class="preloader-progress">
+          <div class="preloader-bar"><span id="preloaderBarFill"></span></div>
+          <div class="preloader-percent"><span id="preloaderPercent">0</span>%</div>
+        </div>
+      </div>
+    </div>
+    <div id="topLoader" class="top-loader" aria-hidden="true"><span></span></div>
     <header class="site-header">
       <div class="top-row container">
         <a class="brand" href="?view=home" aria-label="العودة للرئيسية">المصدر</a>
@@ -27,13 +43,14 @@
               <button class="text-link" type="button" id="logoutBtn">تسجيل الخروج</button>
             </div>
           </div>
+          <button class="btn btn-secondary" type="button" id="favoritesBtn">المفضلة</button>
           <button class="btn" type="button" id="cartBtn">السلة <span id="cartCount">0</span></button>
         </div>
       </div>
       <nav class="category-nav container" id="headerCategoryNav" aria-label="الأقسام الرئيسية"></nav>
     </header>
 
-    <main class="container" id="appRoot">
+    <main class="container is-hidden" id="appRoot">
       <section id="searchView" class="panel hidden" aria-live="polite">
         <div class="section-title-wrap">
           <h2>نتائج البحث</h2>
@@ -41,7 +58,15 @@
         </div>
         <div class="products-layout">
           <aside id="searchFiltersSidebar" class="filters-sidebar"></aside>
-          <div id="searchResults" class="products-grid"></div>
+          <div>
+            <div class="inline-search-wrap">
+              <input id="searchLocalInput" type="search" placeholder="ابحث داخل نتائج القسم" />
+            </div>
+            <div id="searchResults" class="products-grid"></div>
+            <div class="load-more-wrap">
+              <button class="btn btn-secondary hidden" type="button" id="searchLoadMoreBtn">تحميل المزيد</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -54,6 +79,7 @@
         <section class="panel">
           <h2>تسوّق حسب الأقسام</h2>
           <div class="categories-grid" id="homeCategories"></div>
+          <div class="categories-grid hidden" id="homeCategoriesSkeleton"></div>
         </section>
 
         <section class="panel">
@@ -71,10 +97,20 @@
         </section>
 
         <section class="panel">
-          <h2>منتجات القسم</h2>
+          <h2 id="productsSectionTitle">منتجات القسم</h2>
           <div class="products-layout">
             <aside id="filtersSidebar" class="filters-sidebar"></aside>
-            <div class="products-grid" id="categoryProducts"></div>
+            <div>
+              <div class="inline-search-wrap">
+                <input id="categoryLocalInput" type="search" placeholder="ابحث داخل نتائج القسم" />
+              </div>
+              <div id="productsAnchor"></div>
+              <div class="products-grid" id="categoryProducts"></div>
+              <div class="products-grid hidden" id="categoryProductsSkeleton"></div>
+              <div class="load-more-wrap">
+                <button class="btn btn-secondary hidden" type="button" id="categoryLoadMoreBtn">تحميل المزيد</button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -82,6 +118,43 @@
           <h2>أشهر الماركات</h2>
           <div class="brands-grid" id="categoryBrands"></div>
         </section>
+      </section>
+
+      <section id="productView" class="panel hidden">
+        <div id="productDetailsWrap"></div>
+      </section>
+
+      <section id="favoritesView" class="panel hidden">
+        <div class="section-title-wrap">
+          <h2>المفضلة ❤️</h2>
+        </div>
+        <div class="inline-search-wrap">
+          <input id="favoritesLocalInput" type="search" placeholder="ابحث داخل المفضلة" />
+        </div>
+        <div class="products-grid" id="favoritesProducts"></div>
+        <div class="load-more-wrap">
+          <button class="btn btn-secondary hidden" type="button" id="favoritesLoadMoreBtn">تحميل المزيد</button>
+        </div>
+      </section>
+
+
+
+      <section id="orderSuccessView" class="panel hidden">
+        <div class="order-success-card">
+          <h2>تم استلام طلبك ✅</h2>
+          <div class="order-code-wrap">
+            <strong id="orderSuccessCode">-</strong>
+            <button class="btn btn-secondary" id="copyOrderCodeBtn" type="button">نسخ الكود</button>
+          </div>
+          <div id="orderSuccessSummary" class="order-success-summary"></div>
+          <div id="orderSuccessItems" class="order-success-items"></div>
+          <div id="orderSuccessTotals" class="order-success-totals"></div>
+          <div id="orderSuccessCustomer" class="order-success-customer"></div>
+          <div class="order-success-actions">
+            <button class="btn" id="orderSuccessWhatsappBtn" type="button">فتح واتساب مرة أخرى</button>
+            <button class="btn btn-secondary" id="orderSuccessContinueBtn" type="button">متابعة التسوق</button>
+          </div>
+        </div>
       </section>
 
       <div id="mobileFiltersBar" class="mobile-filters-bar hidden" aria-hidden="true">
@@ -189,6 +262,12 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <button id="scrollTopBtn" class="scroll-top-btn" type="button" aria-label="رجوع للأعلى"><i class="fa-solid fa-arrow-up"></i></button>
+
+    <div id="imageLightbox" class="lightbox hidden" aria-hidden="true">
+      <button class="icon-btn lightbox-close" id="closeLightboxBtn" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+      <img id="lightboxImage" alt="صورة المنتج" />
+    </div>
 
     <script src="config.js"></script>
     <script src="app.js"></script>
