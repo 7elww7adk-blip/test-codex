@@ -288,7 +288,7 @@ async function loadData() {
   };
 }
 
-function updateRoute(params = {}) {
+function updateRoute(params = {}, opts = { scroll: "none" }) {
   const prev = { cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery, view: state.currentView };
   const search = new URLSearchParams(location.search);
   const view = params.view ?? state.currentView ?? "home";
@@ -321,7 +321,12 @@ function updateRoute(params = {}) {
   saveLastRoute(`?${search.toString()}`);
   syncStateFromRoute();
   render();
-  requestAnimationFrame(() => setLoading(false));
+  requestAnimationFrame(() => {
+    setLoading(false);
+    if (opts.scroll === "top") setTimeout(scrollToTop, 0);
+    else if (opts.scroll === "products") setTimeout(scrollToProducts, 0);
+    else if (opts.scroll === "view") setTimeout(scrollToViewStart, 0);
+  });
 }
 
 function parseFiltersFromUrl() {
@@ -423,10 +428,39 @@ function closeFiltersSheet() {
   $("filtersSheet")?.setAttribute("aria-hidden", "true");
 }
 
-function scrollToProducts() {
-  const el = document.getElementById("productsAnchor") || document.getElementById("categoryProducts") || document.getElementById("productsSectionTitle");
+function getHeaderOffset() {
+  const header = document.querySelector("header") || document.getElementById("siteHeader");
+  if (!header) return 0;
+
+  const style = window.getComputedStyle(header);
+  const pos = style.position;
+  if (pos !== "fixed" && pos !== "sticky") return 0;
+
+  const rect = header.getBoundingClientRect();
+  return Math.ceil(rect.height) + 8;
+}
+
+function scrollToElementWithOffset(el) {
   if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const offset = getHeaderOffset();
+  const top = window.pageYOffset + el.getBoundingClientRect().top - offset;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function scrollToProducts() {
+  const el = document.getElementById("productsAnchor") || document.getElementById("productsSectionTitle") || document.getElementById("productsGrid");
+  if (!el) return;
+  scrollToElementWithOffset(el);
+}
+
+function scrollToViewStart() {
+  const el = document.querySelector("main") || document.getElementById("app");
+  if (!el) return scrollToTop();
+  scrollToElementWithOffset(el);
 }
 
 function setLoading(isLoading) {
@@ -459,7 +493,7 @@ function bindFiltersEvents(viewName) {
       min_price: min,
       max_price: max,
       sort
-    });
+    }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
     setTimeout(scrollToProducts, 0);
   };
@@ -474,7 +508,7 @@ function bindFiltersEvents(viewName) {
       min_price: "",
       max_price: "",
       sort: "newest"
-    });
+    }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
     setTimeout(scrollToProducts, 0);
   };
@@ -636,13 +670,12 @@ function renderCategory() {
     ${state.selectedBrand ? `<p><strong>${state.selectedBrand}</strong></p>` : ""}
     <button class="btn btn-secondary" id="backHomeBtn">العودة للرئيسية</button>
   </div>`;
-  $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
+  $("backHomeBtn").onclick = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" }, { scroll: "top" });
 
   const subs = subCategories.filter((s) => s.main_category_name === cat);
   $("subcategoryCards").innerHTML = [`<article class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''><div class='subcategory-image-wrap'><img ${imageAttrs(PLACEHOLDER_IMAGE, "الكل")} /></div><h3>الكل</h3></article>`, ...subs.map((s) => `<article class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'><div class='subcategory-image-wrap'><img ${imageAttrs(s.image_url || "", s.sub_category_name)} /></div><h3>${s.sub_category_name}</h3></article>`)].join("");
   $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => {
-    updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "" });
-    setTimeout(scrollToProducts, 0);
+    updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "", min_price: "", max_price: "", sort: "" }, { scroll: "products" });
   });
 
   $("categoryProducts").innerHTML = filtered.length ? visible.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
@@ -715,7 +748,7 @@ function bindProductInteractions(root = document) {
     e.preventDefault();
     const id = el.dataset.openProduct;
     if (!id) return;
-    updateRoute({ view: "product", id, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery });
+    updateRoute({ view: "product", id, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery }, { scroll: "top" });
   });
   root.querySelectorAll("[data-fav]").forEach((el) => el.onclick = (e) => {
     e.preventDefault();
@@ -994,7 +1027,7 @@ function bindStaticEvents() {
     $("cartBackdrop").classList.add("hidden");
     $("cartDrawer").setAttribute("aria-hidden", "true");
   };
-  $("favoritesBtn").onclick = () => updateRoute({ view: "favorites", cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery });
+  $("favoritesBtn").onclick = () => updateRoute({ view: "favorites", cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: state.searchQuery }, { scroll: "top" });
   $("cartBtn").onclick = open;
   $("closeCart").onclick = close;
   $("cartBackdrop").onclick = close;
@@ -1099,7 +1132,7 @@ function bindStaticEvents() {
   toggleTopBtn();
   topBtn && (topBtn.onclick = () => window.scrollTo({ top: 0, behavior: "smooth" }));
 
-  window.__goHome = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" });
+  window.__goHome = () => updateRoute({ view: "home", cat: "", sub: "", brand: "", q: "" }, { scroll: "top" });
 }
 
 (async function init() {
