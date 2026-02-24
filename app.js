@@ -495,6 +495,7 @@ function bindFiltersEvents(viewName) {
       sort
     }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
+    setTimeout(scrollToProducts, 0);
   };
 
   const clearFilter = () => {
@@ -509,6 +510,7 @@ function bindFiltersEvents(viewName) {
       sort: "newest"
     }, { scroll: viewName === "category" ? "products" : "none" });
     closeFiltersSheet();
+    setTimeout(scrollToProducts, 0);
   };
 
   document.querySelectorAll('#applyFiltersBtn').forEach((btn) => btn.onclick = () => applyFilter(btn));
