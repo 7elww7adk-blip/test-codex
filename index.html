@@ -11,6 +11,21 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div id="appPreloader" class="app-preloader" aria-hidden="false">
+      <div class="preloader-card">
+        <div class="preloader-title">جاري تحميل المتجر</div>
+
+        <div class="preloader-row">
+          <div class="preloader-spinner" aria-hidden="true"></div>
+          <div class="preloader-status" id="preloaderStatus">بدء التحميل…</div>
+        </div>
+
+        <div class="preloader-progress">
+          <div class="preloader-bar"><span id="preloaderBarFill"></span></div>
+          <div class="preloader-percent"><span id="preloaderPercent">0</span>%</div>
+        </div>
+      </div>
+    </div>
     <div id="topLoader" class="top-loader" aria-hidden="true"><span></span></div>
     <header class="site-header">
       <div class="top-row container">
@@ -35,7 +50,7 @@
       <nav class="category-nav container" id="headerCategoryNav" aria-label="الأقسام الرئيسية"></nav>
     </header>
 
-    <main class="container" id="appRoot">
+    <main class="container is-hidden" id="appRoot">
       <section id="searchView" class="panel hidden" aria-live="polite">
         <div class="section-title-wrap">
           <h2>نتائج البحث</h2>

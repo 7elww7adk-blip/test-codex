@@ -129,6 +129,160 @@ function renderProductPrice(p) {
   return `<div class="price-block"><span class='price'>${formatMoney(price)}</span>${oldPrice > price ? `<span class='old-price'>${formatMoney(oldPrice)}</span>` : ""}${discount > 0 ? `<span class='discount-chip'>-${discount}%</span>` : ""}</div>`;
 }
 
+
+let preloaderTimer = null;
+let preloaderValue = 0;
+let preloaderTarget = 0;
+let preloaderShowTimer = null;
+let preloaderShown = false;
+
+function setPreloaderText(text) {
+  const el = document.getElementById("preloaderStatus");
+  if (el) el.textContent = text;
+}
+
+function setPreloaderProgress(pct) {
+  const fill = document.getElementById("preloaderBarFill");
+  const num = document.getElementById("preloaderPercent");
+  const safe = Math.max(0, Math.min(100, Math.floor(pct)));
+  if (fill) fill.style.width = `${safe}%`;
+  if (num) num.textContent = String(safe);
+}
+
+function animatePreloaderTowardTarget() {
+  if (preloaderTimer) clearInterval(preloaderTimer);
+  preloaderTimer = setInterval(() => {
+    if (preloaderValue < preloaderTarget) {
+      const step = preloaderValue < 60 ? 2 : 1;
+      preloaderValue = Math.min(preloaderTarget, preloaderValue + step);
+      setPreloaderProgress(preloaderValue);
+    }
+  }, 40);
+}
+
+function showPreloader() {
+  const root = document.getElementById("appRoot");
+  const pre = document.getElementById("appPreloader");
+  if (root) {
+    root.classList.add("is-hidden");
+    root.classList.remove("is-ready");
+  }
+  if (pre) {
+    pre.classList.remove("is-hidden");
+    pre.setAttribute("aria-hidden", "false");
+  }
+  preloaderValue = 0;
+  preloaderTarget = 10;
+  setPreloaderText("بدء التحميل…");
+  setPreloaderProgress(0);
+  animatePreloaderTowardTarget();
+}
+
+function setPreloaderStage(stage) {
+  if (stage === "settings") {
+    preloaderTarget = 10;
+    setPreloaderText("تحميل الإعدادات…");
+  } else if (stage === "main_categories") {
+    preloaderTarget = 25;
+    setPreloaderText("تحميل الأقسام…");
+  } else if (stage === "sub_categories") {
+    preloaderTarget = 40;
+    setPreloaderText("تحميل الأقسام الفرعية…");
+  } else if (stage === "brands") {
+    preloaderTarget = 55;
+    setPreloaderText("تحميل الماركات…");
+  } else if (stage === "products") {
+    preloaderTarget = 80;
+    setPreloaderText("تحميل المنتجات…");
+  } else if (stage === "render") {
+    preloaderTarget = 95;
+    setPreloaderText("تجهيز الصفحة…");
+  }
+  animatePreloaderTowardTarget();
+}
+
+function hidePreloader() {
+  if (preloaderTimer) {
+    clearInterval(preloaderTimer);
+    preloaderTimer = null;
+  }
+  preloaderValue = 100;
+  setPreloaderProgress(100);
+  setPreloaderText("تم التحميل ✅");
+  setTimeout(() => {
+    const pre = document.getElementById("appPreloader");
+    const root = document.getElementById("appRoot");
+    if (pre) {
+      pre.classList.add("is-hidden");
+      pre.setAttribute("aria-hidden", "true");
+    }
+    if (root) {
+      root.classList.remove("is-hidden");
+      root.classList.add("is-ready");
+    }
+  }, 180);
+}
+
+
+function shouldSkipPreloaderBecauseCached() {
+  const required = ["settings", "main_categories", "products"];
+  return required.every((action) => {
+    const raw = localStorage.getItem(`msdr_cache_${action}`);
+    if (!raw) return false;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed?.ts) return false;
+      return Date.now() - parsed.ts < CACHE_TTL_MS;
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
+function shouldSkipPreloaderBecauseSession() {
+  return sessionStorage.getItem("msdr_preloader_seen") === "1";
+}
+
+function startSmartPreloader() {
+  const root = document.getElementById("appRoot");
+  if (root) {
+    root.classList.remove("is-hidden");
+    root.classList.add("is-ready");
+  }
+
+  const skipCached = shouldSkipPreloaderBecauseCached();
+  const skipSession = shouldSkipPreloaderBecauseSession();
+  if (skipCached || skipSession) return;
+
+  preloaderShowTimer = setTimeout(() => {
+    showPreloader();
+    preloaderShown = true;
+    sessionStorage.setItem("msdr_preloader_seen", "1");
+  }, 200);
+}
+
+function stopSmartPreloader() {
+  if (preloaderShowTimer) {
+    clearTimeout(preloaderShowTimer);
+    preloaderShowTimer = null;
+  }
+  if (preloaderShown) {
+    hidePreloader();
+    preloaderShown = false;
+    return;
+  }
+  const root = document.getElementById("appRoot");
+  const pre = document.getElementById("appPreloader");
+  if (pre) {
+    pre.classList.add("is-hidden");
+    pre.setAttribute("aria-hidden", "true");
+  }
+  if (root) {
+    root.classList.remove("is-hidden");
+    root.classList.add("is-ready");
+  }
+}
+
 function clearCacheWhenRefreshRequested() {
   const p = new URLSearchParams(location.search);
   if (p.get("refresh") !== "1") return;
@@ -252,14 +406,21 @@ async function getCached(action) {
 }
 
 async function loadData() {
-  const [products, brands, mainCategories, subCategories, banners, settingsRows] = await Promise.all([
-    getCached("products"),
-    getCached("brands"),
-    getCached("main_categories"),
-    getCached("sub_categories"),
-    getCached("banners"),
-    getCached("settings")
-  ]);
+  setPreloaderStage("settings");
+  const settingsRows = await getCached("settings");
+
+  setPreloaderStage("main_categories");
+  const mainCategories = await getCached("main_categories");
+
+  setPreloaderStage("sub_categories");
+  const subCategories = await getCached("sub_categories");
+
+  setPreloaderStage("brands");
+  const brands = await getCached("brands");
+
+  setPreloaderStage("products");
+  const products = await getCached("products");
+  const banners = await getCached("banners");
 
   const settings = { ...FALLBACK_SETTINGS };
   settingsRows.forEach((row) => {
@@ -1259,6 +1420,7 @@ function bindStaticEvents() {
 (async function init() {
   try {
     setLoading(true);
+    startSmartPreloader();
     clearCacheWhenRefreshRequested();
     loadCurrentUser();
     loadCart();
@@ -1272,8 +1434,10 @@ function bindStaticEvents() {
     await loadData();
     state.isLoading = false;
     setLoading(false);
+    setPreloaderStage("render");
     if (!state.currentCategory && state.currentView === "category") state.currentCategory = DEFAULT_CATEGORY;
     render();
+    stopSmartPreloader();
     setInterval(() => {
       state.heroIndex += 1;
       if (state.currentView === "home") renderHome();
@@ -1284,6 +1448,8 @@ function bindStaticEvents() {
     });
   } catch (e) {
     setLoading(false);
+    stopSmartPreloader();
+    showToast("تعذر تحميل البيانات");
     $("appRoot").innerHTML = `<div class='panel empty-state'>تعذر تحميل بيانات المتجر حالياً. يرجى المحاولة لاحقاً.</div>`;
   }
 })();
