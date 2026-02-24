@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div id="topLoader" class="top-loader" aria-hidden="true"><span></span></div>
     <header class="site-header">
       <div class="top-row container">
         <a class="brand" href="?view=home" aria-label="العودة للرئيسية">المصدر</a>
@@ -81,13 +82,14 @@
         </section>
 
         <section class="panel">
-          <h2>منتجات القسم</h2>
+          <h2 id="productsSectionTitle">منتجات القسم</h2>
           <div class="products-layout">
             <aside id="filtersSidebar" class="filters-sidebar"></aside>
             <div>
               <div class="inline-search-wrap">
                 <input id="categoryLocalInput" type="search" placeholder="ابحث داخل نتائج القسم" />
               </div>
+              <div id="productsAnchor"></div>
               <div class="products-grid" id="categoryProducts"></div>
               <div class="products-grid hidden" id="categoryProductsSkeleton"></div>
               <div class="load-more-wrap">

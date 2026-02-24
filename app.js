@@ -316,10 +316,12 @@ function updateRoute(params = {}) {
   if (view === "search" && (prev.q !== q || prev.brand !== brand || prev.view !== view)) resetLimit("search");
   if (view === "favorites" && prev.view !== view) resetLimit("favorites");
 
+  setLoading(true);
   history.pushState({}, "", `?${search.toString()}`);
   saveLastRoute(`?${search.toString()}`);
   syncStateFromRoute();
   render();
+  requestAnimationFrame(() => setLoading(false));
 }
 
 function parseFiltersFromUrl() {
@@ -367,9 +369,14 @@ function applyProductFilters(products) {
   return filtered;
 }
 
-function filtersTemplate({ brands = [] }) {
+function filtersTemplate({ brands = [], subcategories = [], view = "category" }) {
   const currentSort = state.sort || "newest";
+  const showSubcats = view === "category";
   return `<div class="filters-card">
+    ${showSubcats ? `<div class="filter-group"><h4>الأقسام الفرعية</h4>
+      <label class="filter-choice"><input type="radio" name="filterSub" value="" ${!state.selectedSubcategory ? "checked" : ""} /> الكل</label>
+      ${subcategories.map((sub) => `<label class="filter-choice"><input type="radio" name="filterSub" value="${sub}" ${state.selectedSubcategory === sub ? "checked" : ""} /> ${sub}</label>`).join("")}
+    </div>` : ""}
     <div class="filter-group">
       <h4>الماركة</h4>
       <label class="filter-choice"><input type="radio" name="filterBrand" value="" ${!state.selectedBrand ? "checked" : ""} /> كل الماركات</label>
@@ -416,6 +423,19 @@ function closeFiltersSheet() {
   $("filtersSheet")?.setAttribute("aria-hidden", "true");
 }
 
+function scrollToProducts() {
+  const el = document.getElementById("productsAnchor") || document.getElementById("categoryProducts") || document.getElementById("productsSectionTitle");
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setLoading(isLoading) {
+  const bar = document.getElementById("topLoader");
+  if (!bar) return;
+  bar.classList.toggle("is-loading", !!isLoading);
+  bar.setAttribute("aria-hidden", isLoading ? "false" : "true");
+}
+
 function openFiltersSheet() {
   $("filtersSheet")?.classList.remove("hidden");
   $("filtersSheetOverlay")?.classList.remove("hidden");
@@ -426,13 +446,14 @@ function bindFiltersEvents(viewName) {
   const applyFilter = (sourceBtn) => {
     const root = sourceBtn?.closest(".filters-card") || document;
     const chosen = root.querySelector('input[name="filterBrand"]:checked');
+    const chosenSub = root.querySelector('input[name="filterSub"]:checked');
     const min = root.querySelector('#filterMinPrice')?.value?.trim() || "";
     const max = root.querySelector('#filterMaxPrice')?.value?.trim() || "";
     const sort = root.querySelector('#filterSort')?.value || "newest";
     updateRoute({
       view: viewName,
       cat: state.currentCategory,
-      sub: state.selectedSubcategory,
+      sub: viewName === "category" ? (chosenSub?.value || "") : state.selectedSubcategory,
       q: state.searchQuery,
       brand: chosen?.value || "",
       min_price: min,
@@ -440,13 +461,14 @@ function bindFiltersEvents(viewName) {
       sort
     });
     closeFiltersSheet();
+    setTimeout(scrollToProducts, 0);
   };
 
   const clearFilter = () => {
     updateRoute({
       view: viewName,
       cat: state.currentCategory,
-      sub: state.selectedSubcategory,
+      sub: "",
       q: state.searchQuery,
       brand: "",
       min_price: "",
@@ -454,6 +476,7 @@ function bindFiltersEvents(viewName) {
       sort: "newest"
     });
     closeFiltersSheet();
+    setTimeout(scrollToProducts, 0);
   };
 
   document.querySelectorAll('#applyFiltersBtn').forEach((btn) => btn.onclick = () => applyFilter(btn));
@@ -598,6 +621,7 @@ function renderCategory() {
   const localQ = state.ui.localSearch.category || "";
   const localFiltered = baseFiltered.filter((p) => !localQ || [p.name, p.brand_name, p.description, p.specs].join(" ").toLowerCase().includes(localQ));
   const availableBrands = [...new Set(categoryProducts.filter((p) => !state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory).map((p) => p.brand_name).filter(Boolean))];
+  const filterSubcats = sortBy(subCategories.filter((sub) => sub.main_category_name === cat)).map((sub) => sub.sub_category_name);
   const filtered = applyProductFilters(localFiltered);
   const visible = getVisibleProducts("category", filtered);
 
@@ -616,10 +640,13 @@ function renderCategory() {
 
   const subs = subCategories.filter((s) => s.main_category_name === cat);
   $("subcategoryCards").innerHTML = [`<article class='card subcategory-card ${!state.selectedSubcategory ? "active" : ""}' data-sub=''><div class='subcategory-image-wrap'><img ${imageAttrs(PLACEHOLDER_IMAGE, "الكل")} /></div><h3>الكل</h3></article>`, ...subs.map((s) => `<article class='card subcategory-card ${state.selectedSubcategory === s.sub_category_name ? "active" : ""}' data-sub='${s.sub_category_name}'><div class='subcategory-image-wrap'><img ${imageAttrs(s.image_url || "", s.sub_category_name)} /></div><h3>${s.sub_category_name}</h3></article>`)].join("");
-  $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "" }));
+  $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => {
+    updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "" });
+    setTimeout(scrollToProducts, 0);
+  });
 
   $("categoryProducts").innerHTML = filtered.length ? visible.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
-  renderFiltersUI({ view: "category", brands: availableBrands });
+  renderFiltersUI({ view: "category", brands: availableBrands, subcategories: filterSubcats });
   bindLocalSearch("categoryLocalInput", "category");
   renderLoadMore("category", filtered.length, "categoryLoadMoreBtn");
 
@@ -1077,6 +1104,7 @@ function bindStaticEvents() {
 
 (async function init() {
   try {
+    setLoading(true);
     clearCacheWhenRefreshRequested();
     loadCurrentUser();
     loadCart();
@@ -1089,6 +1117,7 @@ function bindStaticEvents() {
     ["category", "search", "favorites", "similar"].forEach(ensureLimit);
     await loadData();
     state.isLoading = false;
+    setLoading(false);
     if (!state.currentCategory && state.currentView === "category") state.currentCategory = DEFAULT_CATEGORY;
     render();
     setInterval(() => {
@@ -1100,6 +1129,7 @@ function bindStaticEvents() {
       render();
     });
   } catch (e) {
+    setLoading(false);
     $("appRoot").innerHTML = `<div class='panel empty-state'>تعذر تحميل بيانات المتجر حالياً. يرجى المحاولة لاحقاً.</div>`;
   }
 })();
