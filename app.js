@@ -15,6 +15,9 @@ const state = {
   selectedBrand: "",
   searchQuery: "",
   currentUser: null,
+  minPrice: "",
+  maxPrice: "",
+  sort: "newest",
   cart: [],
   data: { products: [], brands: [], mainCategories: [], subCategories: [], banners: [], settings: {} },
   heroIndex: 0
@@ -195,24 +198,165 @@ async function loadData() {
 }
 
 function updateRoute(params = {}) {
-  const search = new URLSearchParams();
-  search.set("view", params.view || state.currentView || "home");
-  if (params.cat || state.currentCategory) search.set("cat", params.cat ?? state.currentCategory);
-  if (params.sub || state.selectedSubcategory) search.set("sub", params.sub ?? state.selectedSubcategory);
-  if (params.brand || state.selectedBrand) search.set("brand", params.brand ?? state.selectedBrand);
-  if (params.q || state.searchQuery) search.set("q", params.q ?? state.searchQuery);
+  const search = new URLSearchParams(location.search);
+  search.set("view", params.view ?? state.currentView ?? "home");
+
+  const cat = params.cat ?? state.currentCategory;
+  const sub = params.sub ?? state.selectedSubcategory;
+  const brand = params.brand ?? state.selectedBrand;
+  const q = params.q ?? state.searchQuery;
+  const minPrice = params.min_price ?? state.minPrice;
+  const maxPrice = params.max_price ?? state.maxPrice;
+  const sort = params.sort ?? state.sort ?? "newest";
+
+  cat ? search.set("cat", cat) : search.delete("cat");
+  sub ? search.set("sub", sub) : search.delete("sub");
+  brand ? search.set("brand", brand) : search.delete("brand");
+  q ? search.set("q", q) : search.delete("q");
+  minPrice ? search.set("min_price", minPrice) : search.delete("min_price");
+  maxPrice ? search.set("max_price", maxPrice) : search.delete("max_price");
+  sort && sort !== "newest" ? search.set("sort", sort) : search.delete("sort");
+
   history.pushState({}, "", `?${search.toString()}`);
   syncStateFromRoute();
   render();
 }
 
+function parseFiltersFromUrl() {
+  const p = new URLSearchParams(location.search);
+  return {
+    brand: p.get("brand") || "",
+    minPrice: p.get("min_price") || "",
+    maxPrice: p.get("max_price") || "",
+    sort: p.get("sort") || "newest"
+  };
+}
+
 function syncStateFromRoute() {
   const p = new URLSearchParams(location.search);
+  const filters = parseFiltersFromUrl();
   state.currentView = p.get("view") || "home";
   state.currentCategory = p.get("cat") || "";
   state.selectedSubcategory = p.get("sub") || "";
-  state.selectedBrand = p.get("brand") || "";
+  state.selectedBrand = filters.brand;
   state.searchQuery = p.get("q") || "";
+  state.minPrice = filters.minPrice;
+  state.maxPrice = filters.maxPrice;
+  state.sort = filters.sort;
+}
+
+function getProductEffectivePrice(product) {
+  return product.sale_price > 0 ? asNum(product.sale_price) : asNum(product.price);
+}
+
+function applyProductFilters(products) {
+  const min = state.minPrice === "" ? null : asNum(state.minPrice, NaN);
+  const max = state.maxPrice === "" ? null : asNum(state.maxPrice, NaN);
+  let filtered = products.filter((p) => {
+    const price = getProductEffectivePrice(p);
+    if (Number.isFinite(min) && price < min) return false;
+    if (Number.isFinite(max) && price > max) return false;
+    return true;
+  });
+
+  if (state.sort === "price_asc") filtered = filtered.sort((a, b) => getProductEffectivePrice(a) - getProductEffectivePrice(b));
+  else if (state.sort === "price_desc") filtered = filtered.sort((a, b) => getProductEffectivePrice(b) - getProductEffectivePrice(a));
+  else if (state.sort === "name_asc") filtered = filtered.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  else filtered = filtered.sort((a, b) => asNum(b.sort, 0) - asNum(a.sort, 0));
+  return filtered;
+}
+
+function filtersTemplate({ brands = [] }) {
+  const currentSort = state.sort || "newest";
+  return `<div class="filters-card">
+    <div class="filter-group">
+      <h4>الماركة</h4>
+      <label class="filter-choice"><input type="radio" name="filterBrand" value="" ${!state.selectedBrand ? "checked" : ""} /> كل الماركات</label>
+      ${brands.map((b) => `<label class="filter-choice"><input type="radio" name="filterBrand" value="${b}" ${state.selectedBrand === b ? "checked" : ""} /> ${b}</label>`).join("")}
+    </div>
+    <div class="filter-group">
+      <h4>السعر</h4>
+      <div class="filter-price-grid">
+        <input id="filterMinPrice" type="number" min="0" placeholder="من" value="${state.minPrice}" />
+        <input id="filterMaxPrice" type="number" min="0" placeholder="إلى" value="${state.maxPrice}" />
+      </div>
+    </div>
+    <div class="filter-group">
+      <h4>الترتيب</h4>
+      <select id="filterSort" class="filter-sort-select">
+        <option value="newest" ${currentSort === "newest" ? "selected" : ""}>الأحدث</option>
+        <option value="price_asc" ${currentSort === "price_asc" ? "selected" : ""}>السعر: الأقل للأعلى</option>
+        <option value="price_desc" ${currentSort === "price_desc" ? "selected" : ""}>السعر: الأعلى للأقل</option>
+        <option value="name_asc" ${currentSort === "name_asc" ? "selected" : ""}>الاسم: أ-ي</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="button" class="btn" id="applyFiltersBtn">تطبيق</button>
+      <button type="button" class="btn btn-secondary" id="clearFiltersBtn">مسح الفلاتر</button>
+    </div>
+  </div>`;
+}
+
+function renderFiltersUI(context) {
+  const desktopTarget = context.view === "search" ? $("searchFiltersSidebar") : $("filtersSidebar");
+  if (!desktopTarget) return;
+  desktopTarget.innerHTML = filtersTemplate(context);
+  const sheetContent = $("filtersSheetContent");
+  if (sheetContent) sheetContent.innerHTML = filtersTemplate(context);
+  bindFiltersEvents(context.view);
+  const showMobile = window.matchMedia("(max-width: 991px)").matches && (state.currentView === "category" || state.currentView === "search");
+  $("mobileFiltersBar")?.classList.toggle("hidden", !showMobile);
+  document.body.classList.toggle("has-mobile-filters", showMobile);
+}
+
+function closeFiltersSheet() {
+  $("filtersSheet")?.classList.add("hidden");
+  $("filtersSheetOverlay")?.classList.add("hidden");
+  $("filtersSheet")?.setAttribute("aria-hidden", "true");
+}
+
+function openFiltersSheet() {
+  $("filtersSheet")?.classList.remove("hidden");
+  $("filtersSheetOverlay")?.classList.remove("hidden");
+  $("filtersSheet")?.setAttribute("aria-hidden", "false");
+}
+
+function bindFiltersEvents(viewName) {
+  const applyFilter = (sourceBtn) => {
+    const root = sourceBtn?.closest(".filters-card") || document;
+    const chosen = root.querySelector('input[name="filterBrand"]:checked');
+    const min = root.querySelector('#filterMinPrice')?.value?.trim() || "";
+    const max = root.querySelector('#filterMaxPrice')?.value?.trim() || "";
+    const sort = root.querySelector('#filterSort')?.value || "newest";
+    updateRoute({
+      view: viewName,
+      cat: state.currentCategory,
+      sub: state.selectedSubcategory,
+      q: state.searchQuery,
+      brand: chosen?.value || "",
+      min_price: min,
+      max_price: max,
+      sort
+    });
+    closeFiltersSheet();
+  };
+
+  const clearFilter = () => {
+    updateRoute({
+      view: viewName,
+      cat: state.currentCategory,
+      sub: state.selectedSubcategory,
+      q: state.searchQuery,
+      brand: "",
+      min_price: "",
+      max_price: "",
+      sort: "newest"
+    });
+    closeFiltersSheet();
+  };
+
+  document.querySelectorAll('#applyFiltersBtn').forEach((btn) => btn.onclick = () => applyFilter(btn));
+  document.querySelectorAll('#clearFiltersBtn').forEach((btn) => btn.onclick = clearFilter);
 }
 
 function renderHeaderCategories() {
@@ -301,7 +445,9 @@ function renderCategory() {
   const { products, subCategories, banners } = state.data;
   const cat = state.currentCategory || DEFAULT_CATEGORY;
   const categoryProducts = products.filter((p) => p.main_category_name === cat);
-  const filtered = categoryProducts.filter((p) => (!state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory) && (!state.selectedBrand || p.brand_name === state.selectedBrand));
+  const baseFiltered = categoryProducts.filter((p) => (!state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory) && (!state.selectedBrand || p.brand_name === state.selectedBrand));
+  const availableBrands = [...new Set(categoryProducts.filter((p) => !state.selectedSubcategory || p.sub_category_name === state.selectedSubcategory).map((p) => p.brand_name).filter(Boolean))];
+  const filtered = applyProductFilters(baseFiltered);
 
   const catBanner = banners.find((b) => b.main_category_name === cat && !b.sub_category_name && !b.brand_name)
     || banners.find((b) => b.main_category_name === cat)
@@ -321,6 +467,7 @@ function renderCategory() {
   $("subcategoryCards").querySelectorAll(".subcategory-card").forEach((card) => card.onclick = () => updateRoute({ view: "category", cat, sub: card.dataset.sub || "", brand: "", q: "" }));
 
   $("categoryProducts").innerHTML = filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد منتجات مطابقة للفلتر الحالي.");
+  renderFiltersUI({ view: "category", brands: availableBrands });
 
   const catBrands = getCategoryBrands(cat);
   $("categoryBrands").innerHTML = catBrands.length
@@ -340,7 +487,11 @@ function renderSearch() {
   }
   view.classList.remove("hidden");
   const hits = state.data.products.filter((p) => [p.name, p.brand_name, p.main_category_name, p.sub_category_name, p.description].join(" ").toLowerCase().includes(q));
-  $("searchResults").innerHTML = hits.length ? hits.map(productCard).join("") : emptyState("لا توجد نتائج بحث مطابقة.");
+  const branded = hits.filter((p) => !state.selectedBrand || p.brand_name === state.selectedBrand);
+  const filtered = applyProductFilters(branded);
+  const brands = [...new Set(hits.map((p) => p.brand_name).filter(Boolean))];
+  $("searchResults").innerHTML = filtered.length ? filtered.map(productCard).join("") : emptyState("لا توجد نتائج بحث مطابقة.");
+  renderFiltersUI({ view: "search", brands });
   bindAddToCart();
 }
 
@@ -534,8 +685,12 @@ function render() {
   $("homeView").classList.toggle("hidden", state.currentView !== "home");
   $("categoryView").classList.toggle("hidden", state.currentView !== "category");
   if (state.currentView === "home") renderHome();
-  else renderCategory();
+  else if (state.currentView === "category") renderCategory();
   renderSearch();
+  if (!(state.currentView === "category" || state.currentView === "search")) {
+    $("mobileFiltersBar")?.classList.add("hidden");
+    document.body.classList.remove("has-mobile-filters");
+  }
   $("searchInput").value = state.searchQuery;
   renderCart();
 }
@@ -544,9 +699,12 @@ function bindStaticEvents() {
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const q = $("searchInput").value.trim();
-    updateRoute({ view: state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q });
+    updateRoute({ view: "search", cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q });
   });
-  $("clearSearchBtn").onclick = () => updateRoute({ view: state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: "" });
+  $("clearSearchBtn").onclick = () => updateRoute({ view: state.currentView === "search" ? "home" : state.currentView, cat: state.currentCategory, sub: state.selectedSubcategory, brand: state.selectedBrand, q: "" });
+  $("openFiltersBtn").onclick = () => openFiltersSheet();
+  $("closeFiltersSheetBtn").onclick = () => closeFiltersSheet();
+  $("filtersSheetOverlay").onclick = () => closeFiltersSheet();
 
   const open = () => {
     $("cartDrawer").classList.add("open");

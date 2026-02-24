@@ -39,7 +39,10 @@
           <h2>نتائج البحث</h2>
           <button class="text-link" type="button" id="clearSearchBtn">مسح البحث</button>
         </div>
-        <div id="searchResults" class="products-grid"></div>
+        <div class="products-layout">
+          <aside id="searchFiltersSidebar" class="filters-sidebar"></aside>
+          <div id="searchResults" class="products-grid"></div>
+        </div>
       </section>
 
       <section id="homeView">
@@ -69,7 +72,10 @@
 
         <section class="panel">
           <h2>منتجات القسم</h2>
-          <div class="products-grid" id="categoryProducts"></div>
+          <div class="products-layout">
+            <aside id="filtersSidebar" class="filters-sidebar"></aside>
+            <div class="products-grid" id="categoryProducts"></div>
+          </div>
         </section>
 
         <section class="panel">
@@ -77,6 +83,19 @@
           <div class="brands-grid" id="categoryBrands"></div>
         </section>
       </section>
+
+      <div id="mobileFiltersBar" class="mobile-filters-bar hidden" aria-hidden="true">
+        <button id="openFiltersBtn" class="btn" type="button">فلتر</button>
+      </div>
+
+      <div id="filtersSheetOverlay" class="filters-sheet-overlay hidden"></div>
+      <div id="filtersSheet" class="filters-sheet hidden" aria-hidden="true">
+        <div class="filters-sheet-header">
+          <h3>تصفية النتائج</h3>
+          <button id="closeFiltersSheetBtn" class="icon-btn" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="filtersSheetContent"></div>
+      </div>
     </main>
 
     <footer class="site-footer">
